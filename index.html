@@ -416,20 +416,25 @@ async function addPayment(){
   let hi=parseInt(document.getElementById('cWeekTo').value);
   if(isNaN(lo)){toast('Pick a week');return;}
   if(isNaN(hi))hi=lo;if(hi<lo){const t=lo;lo=hi;hi=t;}
-  const studentId=document.getElementById('cStudent').value;
+  const sval=document.getElementById('cStudent').value;
   const amount=parseFloat(document.getElementById('cAmount').value);
   const payDate=document.getElementById('cPayDate').value||isoToday();
   const remark=document.getElementById('cRemarks').value.trim();
-  if(!studentId){toast('Add a student first');return;}
+  if(!sval){toast('Choose a student');return;}
   if(!(amount>0)){toast('Enter a valid amount per week');return;}
+  const all=sval==='__all__';
+  const targets=all?DB.students:DB.students.filter(s=>s.id===sval);
+  if(!targets.length){toast('No students');return;}
+  if(all){const wl='week '+(lo+1)+(lo!==hi?('–'+(hi+1)):'');if(!confirm('Record '+money(amount)+'/week for ALL '+targets.length+' students for '+wl+'?\n(Students already paid for those weeks are skipped.)'))return;}
   const rows=[];
-  for(let i=lo;i<=hi;i++) rows.push({student_id:studentId,pay_date:payDate,week_no:i,amount,remarks:remark});
+  targets.forEach(s=>{for(let i=lo;i<=hi;i++){if(all&&DB.payments.some(p=>p.studentId===s.id&&payWeek(p)===i))continue;rows.push({student_id:s.id,pay_date:payDate,week_no:i,amount,remarks:remark});}});
+  if(!rows.length){toast('Nothing to add — already recorded');return;}
   setSync('Saving…');
   const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
   document.getElementById('cAmount').value=DB.settings.fee||'';
   document.getElementById('cRemarks').value='';
-  toast(rows.length>1?('Recorded '+rows.length+' weeks ('+money(amount*rows.length)+')'):'Collection recorded');await loadData();
+  toast('Recorded '+rows.length+' entr'+(rows.length>1?'ies':'y')+' ('+money(amount*rows.length)+')');await loadData();
 }
 async function deletePayment(id){
   setSync('Saving…');
@@ -498,7 +503,7 @@ function renderAll(){
 }
 function fillStudentSelect(){
   const sel=document.getElementById('cStudent');
-  sel.innerHTML=DB.students.length?DB.students.map(s=>`<option value="${s.id}">${esc(s.name)} ${s.section?'· '+esc(s.section):''}</option>`).join(''):'<option value="">— no students yet —</option>';
+  sel.innerHTML=DB.students.length?('<option value="__all__">★ ALL STUDENTS ('+DB.students.length+')</option>'+DB.students.map(s=>`<option value="${s.id}">${esc(s.name)} ${s.section?'· '+esc(s.section):''}</option>`).join('')):'<option value="">— no students yet —</option>';
 }
 function currentWeekIndex(){return weekIndex(isoToday());}
 function weekStartISO(i){const d=termMonday();d.setDate(d.getDate()+i*7);return ymd(d);}
