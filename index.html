@@ -73,7 +73,8 @@
   .authswap{text-align:center;margin-top:14px;font-size:13px;color:var(--muted);}
   .authswap a{color:var(--accent);cursor:pointer;font-weight:600;}
   .syncing{font-size:12px;opacity:.85;}
-  @media print{nav,header,.toolbar,.noprint{display:none!important;}body{background:#fff;}.card{box-shadow:none;border:none;}main{padding:0;}}
+  .print-only{display:none;}
+  @media print{nav,header,.toolbar,.noprint{display:none!important;}body{background:#fff;}.card{box-shadow:none;border:none;}main{padding:0;max-width:none;}.print-only{display:block!important;}.tablewrap{max-height:none!important;overflow:visible!important;border:none!important;}table{font-size:9px!important;}th,td{padding:3px 4px!important;}}
 </style>
 </head>
 <body>
@@ -152,7 +153,9 @@
   </section>
 
   <section id="weekly" class="tab">
-    <div class="card"><h2>Weekly Collection Summary</h2>
+    <div class="card">
+      <div class="toolbar"><h2 style="margin:0">Weekly Collection Summary</h2><button class="btn sec sm" style="margin-left:auto" onclick="window.print()">🖨 Print / Save as PDF</button></div>
+      <div class="print-only" id="weeklyPrintHead"></div>
       <div class="muted" style="margin-bottom:10px">Weeks counted from the term start date. Each cell shows total collected from that student during the week.</div>
       <div class="tablewrap"><table id="weeklyTable"></table></div></div>
     <div class="card"><h2>Weekly Totals</h2>
@@ -672,6 +675,7 @@ function renderWeekly(){
   body+=`<td class="num">${money0(grand)}</td></tr></tbody>`;t.innerHTML=head+body;
   const maxw=Math.max(...weekTotals,1);
   document.querySelector('#weekTotalsTable tbody').innerHTML=weekTotals.map((c,i)=>`<tr><td>Week ${i+1}</td><td>${weekRange(i)}</td><td class="num">${money(c)}</td><td><div class="bar" style="width:160px"><span style="width:${c/maxw*100}%"></span></div></td></tr>`).join('');
+  const ph=document.getElementById('weeklyPrintHead');if(ph)ph.innerHTML=`<div style="text-align:center;margin-bottom:8px"><div style="font-size:16px;font-weight:800;color:#1f3864">${esc(DB.settings.school||'Cleaning Fee Collection')}</div><div style="font-weight:700;letter-spacing:1px;color:#2e5496">WEEKLY COLLECTION REPORT</div><div style="font-size:11px;color:#555">Grand total: ${money(grand)} · Generated ${fmtDate(isoToday())}</div></div>`;
 }
 function monthKeys(){
   const set={};DB.payments.forEach(p=>set[p.date.slice(0,7)]=true);
