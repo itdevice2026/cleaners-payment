@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cleaners Payment Monitoring System</title>
+<style>
+  :root{
+    --navy:#1f3864; --blue:#2e5496; --lblue:#d6e0f0; --accent:#2563eb;
+    --green:#16a34a; --greenbg:#dcfce7; --amber:#d97706; --amberbg:#fef3c7;
+    --red:#dc2626; --redbg:#fee2e2; --grey:#f1f5f9; --line:#e2e8f0; --text:#0f172a; --muted:#64748b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:#f8fafc;color:var(--text);font-size:14px;}
+  header{background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.3px;}
+  header .school{font-size:12px;opacity:.85;}
+  nav{background:#fff;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;position:sticky;top:0;z-index:20;}
+  nav button{background:none;border:none;padding:12px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;}
+  nav button:hover{color:var(--accent);}
+  nav button.active{color:var(--navy);border-bottom-color:var(--accent);}
+  main{max-width:1100px;margin:0 auto;padding:20px;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px;box-shadow:0 1px 2px rgba(0,0,0,.03);}
+  .card h2{margin:0 0 14px;font-size:15px;color:var(--navy);}
+  .row{display:flex;flex-wrap:wrap;gap:12px;}
+  .field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px;}
+  label{font-size:12px;font-weight:600;color:var(--muted);}
+  input,select,textarea{padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:14px;font-family:inherit;background:#fff;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+  button.btn{background:var(--accent);color:#fff;border:none;padding:10px 16px;border-radius:7px;font-size:14px;font-weight:600;cursor:pointer;}
+  button.btn:hover{background:#1d4ed8;}
+  button.btn.sec{background:#fff;color:var(--accent);border:1px solid var(--accent);}
+  button.btn.ghost{background:#fff;color:var(--muted);border:1px solid var(--line);}
+  button.btn.danger{background:#fff;color:var(--red);border:1px solid var(--red);padding:6px 10px;font-size:12px;}
+  button.btn.sm{padding:6px 12px;font-size:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);}
+  th{background:var(--navy);color:#fff;font-weight:600;font-size:12px;position:sticky;top:0;}
+  tbody tr:nth-child(even){background:var(--grey);}
+  td.num,th.num{text-align:right;}
+  .tablewrap{overflow:auto;max-height:60vh;border:1px solid var(--line);border-radius:8px;}
+  .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+  .pill.paid{background:var(--greenbg);color:var(--green);}
+  .pill.partial{background:var(--amberbg);color:var(--amber);}
+  .pill.unpaid{background:var(--redbg);color:var(--red);}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+  .stat{background:linear-gradient(135deg,#fff,#f8fafc);border:1px solid var(--line);border-radius:10px;padding:14px;}
+  .stat .v{font-size:22px;font-weight:800;color:var(--navy);}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px;}
+  .bar{height:8px;background:var(--grey);border-radius:6px;overflow:hidden;margin-top:8px;}
+  .bar>span{display:block;height:100%;background:var(--green);}
+  .muted{color:var(--muted);font-size:12px;}
+  .right{margin-left:auto;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+  .empty{padding:30px;text-align:center;color:var(--muted);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.3s;z-index:90;max-width:90%;}
+  .toast.show{opacity:1;}
+  .toast.err{background:var(--red);}
+  .inline{display:flex;gap:6px;align-items:center;}
+  /* Auth */
+  #authScreen{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy),var(--blue));display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .authbox{background:#fff;border-radius:14px;padding:30px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+  .authbox h1{font-size:20px;color:var(--navy);margin:0 0 4px;}
+  .authbox p{color:var(--muted);font-size:13px;margin:0 0 20px;}
+  .authbox .field{margin-bottom:14px;}
+  .authbox button{width:100%;margin-top:6px;}
+  .authswap{text-align:center;margin-top:14px;font-size:13px;color:var(--muted);}
+  .authswap a{color:var(--accent);cursor:pointer;font-weight:600;}
+  .syncing{font-size:12px;opacity:.85;}
+  @media print{nav,header .right,.toolbar,.noprint{display:none!important;}body{background:#fff;}.card{box-shadow:none;border:none;}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="authScreen">
+  <div class="authbox">
+    <h1>🧹 Payment Monitoring</h1>
+    <p id="authSub">Sign in to continue</p>
+    <div class="field"><label>Email</label><input type="email" id="authEmail" placeholder="you@example.com" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input type="password" id="authPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()"></div>
+    <button class="btn" id="authBtn" onclick="doAuth()">Sign In</button>
+    <div class="authswap" id="authSwap">No account yet? <a onclick="toggleAuthMode()">Create one</a></div>
+    <div class="muted" id="authMsg" style="margin-top:12px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+<header>
+  <div>
+    <h1>🧹 Cleaners Payment Monitoring System</h1>
+    <div class="school" id="schoolLabel">Per-Student Cleaning Fee Collection</div>
+  </div>
+  <div class="right inline">
+    <span class="syncing" id="syncStatus"></span>
+    <span class="syncing" id="userLabel"></span>
+    <button class="btn ghost sm" onclick="exportJSON()">⭳ Backup</button>
+    <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⭱ Restore</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importJSON(event)">
+    <button class="btn ghost sm" onclick="signOut()">Sign Out</button>
+  </div>
+</header>
+
+<nav>
+  <button data-tab="dashboard" class="active">Dashboard</button>
+  <button data-tab="collect">Daily Collection</button>
+  <button data-tab="weekly">Weekly</button>
+  <button data-tab="monthly">Monthly Report</button>
+  <button data-tab="students">Students</button>
+  <button data-tab="log">Payment Log</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+
+<main>
+  <section id="dashboard" class="tab active">
+    <div class="card"><h2>Overview</h2><div class="stats" id="dashStats"></div></div>
+    <div class="card"><h2>Collection Progress by Student</h2>
+      <div class="tablewrap"><table id="dashTable"><thead><tr>
+        <th>Student</th><th>Section</th><th class="num">Expected</th><th class="num">Paid</th><th class="num">Balance</th><th>Status</th><th>Progress</th>
+      </tr></thead><tbody></tbody></table></div></div>
+  </section>
+
+  <section id="collect" class="tab">
+    <div class="card"><h2>Record a Collection</h2>
+      <div class="row">
+        <div class="field" style="flex:0;min-width:160px"><label>Date</label><input type="date" id="cDate"></div>
+        <div class="field" style="flex:2.5;min-width:300px"><label>Student</label><select id="cStudent"></select></div>
+        <div class="field" style="flex:0;max-width:140px;min-width:110px"><label>Amount</label><input type="number" id="cAmount" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label>Remarks (optional)</label><input type="text" id="cRemarks" placeholder="e.g. Week 1"></div>
+        <div class="field" style="justify-content:flex-end;flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addPayment()">+ Add</button></div>
+      </div>
+      <div class="muted" style="margin-top:8px">Tip: the amount defaults to the weekly fee. Set it in <b>Settings</b>.</div>
+    </div>
+    <div class="card"><h2>Today's Collections <span class="muted" id="todayDateLabel"></span></h2>
+      <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">Amount</th><th>Remarks</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="toolbar" style="margin-top:12px"><b>Today total:&nbsp;</b><span id="todayTotal"></span></div>
+    </div>
+  </section>
+
+  <section id="weekly" class="tab">
+    <div class="card"><h2>Weekly Collection Summary</h2>
+      <div class="muted" style="margin-bottom:10px">Weeks counted from the term start date. Each cell shows total collected from that student during the week.</div>
+      <div class="tablewrap"><table id="weeklyTable"></table></div></div>
+    <div class="card"><h2>Weekly Totals</h2>
+      <div class="tablewrap" style="max-height:none"><table id="weekTotalsTable"><thead><tr><th>Week</th><th>Date Range</th><th class="num">Collected</th><th>Bar</th></tr></thead><tbody></tbody></table></div></div>
+  </section>
+
+  <section id="monthly" class="tab">
+    <div class="card"><h2>Monthly Lumpsum Collection Report</h2>
+      <div class="muted" style="margin-bottom:10px">Daily/weekly collections totalled per calendar month.</div>
+      <div class="tablewrap"><table id="monthlyTable"></table></div></div>
+  </section>
+
+  <section id="students" class="tab">
+    <div class="card"><h2>Add Student (single)</h2>
+      <div class="row">
+        <div class="field"><label>Full Name</label><input type="text" id="sName" placeholder="e.g. Dela Cruz, Juan" onkeydown="if(event.key==='Enter')addStudent()"></div>
+        <div class="field"><label>Class / Section</label><input type="text" id="sSection" placeholder="e.g. Grade 10 - A" onkeydown="if(event.key==='Enter')addStudent()"></div>
+        <div class="field" style="flex:0;min-width:auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn" onclick="addStudent()">+ Add Student</button></div>
+      </div>
+    </div>
+    <div class="card"><h2>Encode / Upload Many Students</h2>
+      <div class="row">
+        <div class="field" style="min-width:260px">
+          <label>Paste names — one per line. Optional section after a "|"  (e.g. <i>Dela Cruz, Juan | Grade 10 - A</i>)</label>
+          <textarea id="bulkText" rows="7" placeholder="Dela Cruz, Juan | Grade 10 - A&#10;Santos, Maria | Grade 10 - A&#10;..." style="resize:vertical;"></textarea>
+        </div>
+        <div class="field" style="flex:0;min-width:220px">
+          <label>Default Section (when a line has none)</label>
+          <input type="text" id="bulkSection" placeholder="e.g. Grade 10 - A">
+          <button class="btn" style="margin-top:8px" onclick="bulkAddStudents()">+ Add Pasted Names</button>
+          <label style="margin-top:14px">Or upload a file</label>
+          <button class="btn sec sm" onclick="document.getElementById('studentFile').click()">⭱ Upload CSV / TXT</button>
+          <input type="file" id="studentFile" accept=".csv,.txt" style="display:none" onchange="importStudentsFile(event)">
+          <span class="muted" style="margin-top:6px">CSV columns: <b>Name, Section</b>. From Excel: File → Save As → CSV.</span>
+        </div>
+      </div>
+    </div>
+    <div class="card"><h2>Student List (<span id="studentCount">0</span>)</h2>
+      <div class="tablewrap"><table id="studentTable"><thead><tr><th>#</th><th>Name</th><th>Section</th><th class="num">Total Paid</th><th></th></tr></thead><tbody></tbody></table></div></div>
+  </section>
+
+  <section id="log" class="tab">
+    <div class="card"><h2>Payment Log</h2>
+      <div class="toolbar">
+        <input type="text" id="logSearch" placeholder="Search name / remarks..." oninput="renderLog()" style="min-width:220px">
+        <button class="btn sec sm" onclick="exportCSV()">⭳ Export CSV</button>
+        <button class="btn ghost sm" onclick="window.print()">🖨 Print</button>
+        <span class="right muted" id="logCount"></span>
+      </div>
+      <div class="tablewrap"><table id="logTable"><thead><tr><th>Date</th><th>Student</th><th>Section</th><th class="num">Amount</th><th>Remarks</th><th></th></tr></thead><tbody></tbody></table></div></div>
+  </section>
+
+  <section id="settings" class="tab">
+    <div class="card"><h2>Settings</h2>
+      <div class="row">
+        <div class="field"><label>School / Organization Name</label><input type="text" id="setSchool" placeholder="optional"></div>
+        <div class="field" style="max-width:160px"><label>Currency Symbol</label><input type="text" id="setCurrency" maxlength="3"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="field" style="max-width:180px"><label>Weekly Fee per Student</label><input type="number" id="setFee" min="0" step="0.01"></div>
+        <div class="field" style="max-width:180px"><label>Term Start Date</label><input type="date" id="setStart"></div>
+        <div class="field" style="max-width:180px"><label>Number of Weeks (Term)</label><input type="number" id="setWeeks" min="1" max="53"></div>
+      </div>
+      <div class="toolbar" style="margin-top:16px"><button class="btn" onclick="saveSettings()">Save Settings</button></div>
+    </div>
+    <div class="card"><h2>Data</h2>
+      <div class="muted" style="margin-bottom:10px">Data is stored securely online in your Supabase database and shared across everyone who logs in.</div>
+      <div class="toolbar">
+        <button class="btn sec sm" onclick="exportJSON()">⭳ Backup (JSON)</button>
+        <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⭱ Restore / Import (JSON)</button>
+        <button class="btn sec sm" onclick="loadSample()">Load Sample Data</button>
+        <button class="btn danger sm" onclick="resetAll()">Reset Everything</button>
+      </div>
+      <div class="muted" style="margin-top:8px">Restore accepts a backup from the offline version too — a great way to move your existing data online.</div>
+    </div>
+  </section>
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ====== CONFIG ====== */
+const SUPABASE_URL='https://foabpvlwkrtiokhoyxwj.supabase.co';
+const SUPABASE_KEY='sb_publishable_kiF46tqY6LLYQSsXFRyhxA_xReqFtpz';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+/* ====== local cache ====== */
+let DB={settings:{school:'',currency:'₱',fee:20,start:isoToday(),weeks:13},students:[],payments:[]};
+
+/* ====== utils ====== */
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function isoToday(){return new Date().toISOString().slice(0,10);}
+function money(n){const c=DB.settings.currency||'₱';return c+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function money0(n){const c=DB.settings.currency||'₱';return c+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});}
+function toast(m,err){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
+function fmtDate(s){return new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function studentName(id){const s=DB.students.find(x=>x.id===id);return s?s.name:'—';}
+function studentSection(id){const s=DB.students.find(x=>x.id===id);return s?s.section:'';}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function setSync(t){document.getElementById('syncStatus').textContent=t||'';}
+
+/* ====== AUTH ====== */
+let authMode='in'; // 'in' or 'up'
+function toggleAuthMode(){
+  authMode=authMode==='in'?'up':'in';
+  document.getElementById('authSub').textContent=authMode==='in'?'Sign in to continue':'Create your account';
+  document.getElementById('authBtn').textContent=authMode==='in'?'Sign In':'Create Account';
+  document.getElementById('authSwap').innerHTML=authMode==='in'
+    ?'No account yet? <a onclick="toggleAuthMode()">Create one</a>'
+    :'Already have an account? <a onclick="toggleAuthMode()">Sign in</a>';
+  document.getElementById('authMsg').textContent='';
+}
+async function doAuth(){
+  const email=document.getElementById('authEmail').value.trim();
+  const password=document.getElementById('authPass').value;
+  const msg=document.getElementById('authMsg');
+  if(!email||!password){msg.textContent='Enter email and password.';return;}
+  document.getElementById('authBtn').disabled=true;msg.textContent='Please wait…';
+  try{
+    if(authMode==='up'){
+      const {data,error}=await sb.auth.signUp({email,password});
+      if(error)throw error;
+      if(data.session){msg.textContent='';onSignedIn();}
+      else{msg.textContent='Account created. If email confirmation is on, confirm via the link then sign in.';toggleAuthMode();}
+    }else{
+      const {error}=await sb.auth.signInWithPassword({email,password});
+      if(error)throw error;
+      onSignedIn();
+    }
+  }catch(e){msg.textContent=e.message||'Authentication failed.';}
+  document.getElementById('authBtn').disabled=false;
+}
+async function signOut(){await sb.auth.signOut();location.reload();}
+async function onSignedIn(){
+  const {data}=await sb.auth.getUser();
+  document.getElementById('userLabel').textContent=data?.user?.email||'';
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  await loadData();
+}
+
+/* ====== DATA LAYER (Supabase) ====== */
+async function loadData(){
+  setSync('Syncing…');
+  const [stu,pay,set]=await Promise.all([
+    sb.from('students').select('*').order('name'),
+    sb.from('payments').select('*'),
+    sb.from('settings').select('*').eq('id',1).single()
+  ]);
+  if(stu.error||pay.error){toast('Load error: '+((stu.error||pay.error).message),true);setSync('');return;}
+  DB.students=(stu.data||[]).map(r=>({id:r.id,name:r.name,section:r.section||''}));
+  DB.payments=(pay.data||[]).map(r=>({id:r.id,studentId:r.student_id,date:r.pay_date,amount:+r.amount,remarks:r.remarks||''}));
+  const s=set.data||{};
+  DB.settings={school:s.school||'',currency:s.currency||'₱',fee:+s.fee||0,start:s.term_start||isoToday(),weeks:s.term_weeks||13};
+  setSync('✓ Synced');setTimeout(()=>setSync(''),1500);
+  renderAll();
+}
+
+async function addStudent(){
+  const name=document.getElementById('sName').value.trim();
+  const section=document.getElementById('sSection').value.trim();
+  if(!name){toast('Enter a student name');return;}
+  setSync('Saving…');
+  const {error}=await sb.from('students').insert({name,section});
+  if(error){toast(error.message,true);return;}
+  document.getElementById('sName').value='';document.getElementById('sSection').value='';
+  toast('Student added');await loadData();
+}
+async function bulkAddStudents(){
+  const raw=document.getElementById('bulkText').value;
+  const def=document.getElementById('bulkSection').value.trim();
+  const lines=raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){toast('Paste at least one name');return;}
+  const rows=lines.map(line=>{
+    let name=line,section=def;
+    if(line.includes('|')){const p=line.split('|');name=p[0].trim();section=(p[1]||def||'').trim();}
+    else if(line.includes('\t')){const p=line.split('\t');name=p[0].trim();section=(p[1]||def||'').trim();}
+    return name?{name,section}:null;
+  }).filter(Boolean);
+  setSync('Saving…');
+  const {error}=await sb.from('students').insert(rows);
+  if(error){toast(error.message,true);return;}
+  document.getElementById('bulkText').value='';
+  toast(rows.length+' student(s) added');await loadData();
+}
+function parseCSVLine(line){
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){const c=line[i];
+    if(q){if(c==='"'){if(line[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}
+    else{if(c==='"')q=true;else if(c===','){out.push(cur);cur='';}else cur+=c;}}
+  out.push(cur);return out.map(s=>s.trim());
+}
+function importStudentsFile(e){
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=async()=>{
+    const text=r.result;const lines=text.split(/\r?\n/).filter(l=>l.trim());
+    if(!lines.length){toast('File is empty');return;}
+    const isCSV=f.name.toLowerCase().endsWith('.csv')||text.includes(',')||text.includes('"');
+    let start=0;const first=(isCSV?parseCSVLine(lines[0]):[lines[0]]).map(x=>x.toLowerCase());
+    if(first.some(x=>['name','student','full name','student name'].includes(x)))start=1;
+    const rows=[];
+    for(let i=start;i<lines.length;i++){
+      let name,section='';
+      if(isCSV){const c=parseCSVLine(lines[i]);name=(c[0]||'').trim();section=(c[1]||'').trim();}
+      else{const line=lines[i].trim();if(line.includes('|')){const p=line.split('|');name=p[0].trim();section=(p[1]||'').trim();}else name=line;}
+      if(name)rows.push({name,section});
+    }
+    if(!rows.length){toast('No names found');return;}
+    setSync('Saving…');
+    const {error}=await sb.from('students').insert(rows);
+    if(error){toast(error.message,true);return;}
+    toast(rows.length+' student(s) imported');await loadData();
+  };
+  r.readAsText(f);e.target.value='';
+}
+async function deleteStudent(id){
+  if(!confirm('Delete this student and all their payments?'))return;
+  setSync('Saving…');
+  const {error}=await sb.from('students').delete().eq('id',id);
+  if(error){toast(error.message,true);return;}
+  toast('Student deleted');await loadData();
+}
+async function addPayment(){
+  const date=document.getElementById('cDate').value;
+  const studentId=document.getElementById('cStudent').value;
+  const amount=parseFloat(document.getElementById('cAmount').value);
+  const remarks=document.getElementById('cRemarks').value.trim();
+  if(!date){toast('Pick a date');return;}
+  if(!studentId){toast('Add a student first');return;}
+  if(!(amount>0)){toast('Enter a valid amount');return;}
+  setSync('Saving…');
+  const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:date,amount,remarks});
+  if(error){toast(error.message,true);return;}
+  document.getElementById('cAmount').value=DB.settings.fee||'';
+  document.getElementById('cRemarks').value='';
+  toast('Collection recorded');await loadData();
+}
+async function deletePayment(id){
+  setSync('Saving…');
+  const {error}=await sb.from('payments').delete().eq('id',id);
+  if(error){toast(error.message,true);return;}
+  toast('Entry removed');await loadData();
+}
+async function saveSettings(){
+  const upd={
+    school:document.getElementById('setSchool').value.trim(),
+    currency:document.getElementById('setCurrency').value.trim()||'₱',
+    fee:parseFloat(document.getElementById('setFee').value)||0,
+    term_start:document.getElementById('setStart').value||isoToday(),
+    term_weeks:parseInt(document.getElementById('setWeeks').value)||13,
+    updated_at:new Date().toISOString()
+  };
+  setSync('Saving…');
+  const {error}=await sb.from('settings').update(upd).eq('id',1);
+  if(error){toast(error.message,true);return;}
+  toast('Settings saved');await loadData();
+}
+async function resetAll(){
+  if(!confirm('This deletes ALL students and payments from the online database. Continue?'))return;
+  setSync('Saving…');
+  const {error}=await sb.from('students').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  if(error){toast(error.message,true);return;}
+  toast('All data cleared');await loadData();
+}
+async function loadSample(){
+  if(DB.students.length&&!confirm('Add sample students/payments to the database?'))return;
+  const start='2026-06-15';
+  await sb.from('settings').update({fee:20,term_start:start,term_weeks:13,currency:'₱'}).eq('id',1);
+  const sec=['Grade 10 - A','Grade 10 - A','Grade 10 - B','Grade 10 - B','Grade 10 - C'];
+  const names=['Dela Cruz, Juan','Santos, Maria','Reyes, Pedro','Garcia, Ana','Mendoza, Jose'];
+  setSync('Saving…');
+  const {data:ins,error}=await sb.from('students').insert(names.map((n,i)=>({name:n,section:sec[i]}))).select();
+  if(error){toast(error.message,true);return;}
+  const base=new Date(start+'T00:00:00');const pays=[];
+  ins.forEach((s,si)=>{const weeks=[5,3,2,1,4][si];
+    for(let w=0;w<weeks;w++){const d=new Date(base);d.setDate(d.getDate()+w*7);
+      pays.push({student_id:s.id,pay_date:d.toISOString().slice(0,10),amount:20,remarks:'Week '+(w+1)});}});
+  await sb.from('payments').insert(pays);
+  toast('Sample data loaded');await loadData();
+}
+
+/* ====== TERM / WEEK helpers ====== */
+function weekIndex(dateStr){const start=new Date(DB.settings.start+'T00:00:00');const d=new Date(dateStr+'T00:00:00');return Math.floor(Math.floor((d-start)/(864e5))/7);}
+function weekRange(i){const start=new Date(DB.settings.start+'T00:00:00');const a=new Date(start);a.setDate(a.getDate()+i*7);const b=new Date(a);b.setDate(b.getDate()+6);const f=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});return f(a)+' – '+f(b);}
+function totalPaid(studentId){return DB.payments.filter(p=>p.studentId===studentId).reduce((a,p)=>a+(+p.amount),0);}
+function expectedPerStudent(){return (+DB.settings.fee||0)*(+DB.settings.weeks||0);}
+
+/* ====== NAV ====== */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');renderAll();
+});
+
+/* ====== RENDERERS ====== */
+function renderAll(){
+  fillStudentSelect();renderDash();renderToday();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();
+  document.getElementById('schoolLabel').textContent=DB.settings.school||'Per-Student Cleaning Fee Collection';
+}
+function fillStudentSelect(){
+  const sel=document.getElementById('cStudent');
+  sel.innerHTML=DB.students.length?DB.students.map(s=>`<option value="${s.id}">${esc(s.name)} ${s.section?'· '+esc(s.section):''}</option>`).join(''):'<option value="">— no students yet —</option>';
+}
+function renderDash(){
+  const exp=expectedPerStudent()*DB.students.length;
+  const paid=DB.payments.reduce((a,p)=>a+(+p.amount),0);
+  const bal=Math.max(exp-paid,0);const rate=exp>0?(paid/exp*100):0;
+  let fully=0,partial=0,unpaid=0;const e=expectedPerStudent();
+  DB.students.forEach(s=>{const tp=totalPaid(s.id);if(e>0&&tp>=e)fully++;else if(tp>0)partial++;else unpaid++;});
+  document.getElementById('dashStats').innerHTML=`
+    <div class="stat"><div class="v">${DB.students.length}</div><div class="l">Students</div></div>
+    <div class="stat"><div class="v">${money0(paid)}</div><div class="l">Total Collected</div></div>
+    <div class="stat"><div class="v">${money0(exp)}</div><div class="l">Expected (term)</div></div>
+    <div class="stat"><div class="v">${money0(bal)}</div><div class="l">Outstanding</div></div>
+    <div class="stat"><div class="v">${rate.toFixed(1)}%</div><div class="l">Collection Rate</div><div class="bar"><span style="width:${Math.min(rate,100)}%"></span></div></div>
+    <div class="stat"><div class="v" style="color:var(--green)">${fully}</div><div class="l">Paid · <span style="color:var(--amber)">${partial} Partial</span> · <span style="color:var(--red)">${unpaid} Unpaid</span></div></div>`;
+  const tb=document.querySelector('#dashTable tbody');
+  if(!DB.students.length){tb.innerHTML='<tr><td colspan="7" class="empty">No students yet. Add some in the Students tab.</td></tr>';return;}
+  tb.innerHTML=DB.students.map(s=>{
+    const tp=totalPaid(s.id);const b=e-tp;const pct=e>0?Math.min(tp/e*100,100):0;
+    const st=e>0&&tp>=e?['paid','PAID']:tp>0?['partial','PARTIAL']:['unpaid','UNPAID'];
+    return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${money0(e)}</td><td class="num">${money0(tp)}</td><td class="num">${money0(Math.max(b,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td><div class="bar" style="width:90px"><span style="width:${pct}%"></span></div></td></tr>`;
+  }).join('');
+}
+function renderToday(){
+  const today=document.getElementById('cDate').value||isoToday();
+  document.getElementById('todayDateLabel').textContent='· '+fmtDate(today);
+  const list=DB.payments.filter(p=>p.date===today);
+  const tb=document.querySelector('#todayTable tbody');
+  tb.innerHTML=list.length?list.map(p=>`<tr><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger" onclick="deletePayment('${p.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No collections recorded for this date yet.</td></tr>';
+  document.getElementById('todayTotal').textContent=money(list.reduce((a,p)=>a+(+p.amount),0));
+}
+function renderWeekly(){
+  const t=document.getElementById('weeklyTable');
+  if(!DB.students.length){t.innerHTML='<thead><tr><th>Student</th></tr></thead><tbody><tr><td class="empty">No students yet.</td></tr></tbody>';document.querySelector('#weekTotalsTable tbody').innerHTML='';return;}
+  const W=+DB.settings.weeks||13;
+  let head='<thead><tr><th>Student</th><th>Section</th>';
+  for(let i=0;i<W;i++)head+=`<th class="num" title="${weekRange(i)}">W${i+1}</th>`;
+  head+='<th class="num">Total</th></tr></thead>';
+  const weekTotals=Array(W).fill(0);let body='<tbody>';
+  DB.students.forEach(s=>{
+    const cells=Array(W).fill(0);
+    DB.payments.filter(p=>p.studentId===s.id).forEach(p=>{const wi=weekIndex(p.date);if(wi>=0&&wi<W)cells[wi]+=(+p.amount);});
+    let rowTot=0;body+=`<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td>`;
+    cells.forEach((c,i)=>{weekTotals[i]+=c;rowTot+=c;body+=`<td class="num">${c?money0(c):'<span class="muted">–</span>'}</td>`;});
+    body+=`<td class="num"><b>${money0(rowTot)}</b></td></tr>`;
+  });
+  body+='<tr style="background:var(--lblue);font-weight:700"><td colspan="2">TOTAL</td>';
+  let grand=0;weekTotals.forEach(c=>{grand+=c;body+=`<td class="num">${c?money0(c):'–'}</td>`;});
+  body+=`<td class="num">${money0(grand)}</td></tr></tbody>`;t.innerHTML=head+body;
+  const maxw=Math.max(...weekTotals,1);
+  document.querySelector('#weekTotalsTable tbody').innerHTML=weekTotals.map((c,i)=>`<tr><td>Week ${i+1}</td><td>${weekRange(i)}</td><td class="num">${money(c)}</td><td><div class="bar" style="width:160px"><span style="width:${c/maxw*100}%"></span></div></td></tr>`).join('');
+}
+function monthKeys(){
+  const set={};DB.payments.forEach(p=>set[p.date.slice(0,7)]=true);
+  const start=new Date(DB.settings.start+'T00:00:00');const W=+DB.settings.weeks||13;
+  for(let i=0;i<W;i++){const d=new Date(start);d.setDate(d.getDate()+i*7);set[d.toISOString().slice(0,7)]=true;}
+  return Object.keys(set).sort();
+}
+function monthLabel(k){return new Date(k+'-01T00:00:00').toLocaleDateString('en-US',{month:'short',year:'numeric'});}
+function renderMonthly(){
+  const t=document.getElementById('monthlyTable');
+  if(!DB.students.length){t.innerHTML='<thead><tr><th>Student</th></tr></thead><tbody><tr><td class="empty">No students yet.</td></tr></tbody>';return;}
+  const keys=monthKeys();
+  let head='<thead><tr><th>Student</th><th>Section</th>';keys.forEach(k=>head+=`<th class="num">${monthLabel(k)}</th>`);head+='<th class="num">Total</th></tr></thead>';
+  const colTot={};keys.forEach(k=>colTot[k]=0);let grand=0;let body='<tbody>';
+  DB.students.forEach(s=>{
+    const m={};keys.forEach(k=>m[k]=0);let rt=0;
+    DB.payments.filter(p=>p.studentId===s.id).forEach(p=>{const k=p.date.slice(0,7);if(k in m)m[k]+=(+p.amount);});
+    body+=`<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td>`;
+    keys.forEach(k=>{rt+=m[k];colTot[k]+=m[k];body+=`<td class="num">${m[k]?money0(m[k]):'<span class="muted">–</span>'}</td>`;});
+    grand+=rt;body+=`<td class="num"><b>${money0(rt)}</b></td></tr>`;
+  });
+  body+='<tr style="background:var(--lblue);font-weight:700"><td colspan="2">TOTAL</td>';
+  keys.forEach(k=>body+=`<td class="num">${colTot[k]?money0(colTot[k]):'–'}</td>`);
+  body+=`<td class="num">${money0(grand)}</td></tr></tbody>`;t.innerHTML=head+body;
+}
+function renderStudents(){
+  document.getElementById('studentCount').textContent=DB.students.length;
+  const tb=document.querySelector('#studentTable tbody');
+  tb.innerHTML=DB.students.length?DB.students.map((s,i)=>`<tr><td>${i+1}</td><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${money0(totalPaid(s.id))}</td><td><button class="btn danger" onclick="deleteStudent('${s.id}')">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No students yet.</td></tr>';
+}
+function renderLog(){
+  const q=(document.getElementById('logSearch').value||'').toLowerCase();
+  let list=DB.payments.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(q)list=list.filter(p=>(studentName(p.studentId)+' '+(p.remarks||'')+' '+studentSection(p.studentId)).toLowerCase().includes(q));
+  const tb=document.querySelector('#logTable tbody');
+  tb.innerHTML=list.length?list.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger" onclick="deletePayment('${p.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">No payments logged.</td></tr>';
+  document.getElementById('logCount').textContent=list.length+' record(s) · '+money(list.reduce((a,p)=>a+(+p.amount),0));
+}
+function syncSettingsInputs(){
+  document.getElementById('setSchool').value=DB.settings.school||'';
+  document.getElementById('setCurrency').value=DB.settings.currency||'₱';
+  document.getElementById('setFee').value=DB.settings.fee||0;
+  document.getElementById('setStart').value=DB.settings.start||isoToday();
+  document.getElementById('setWeeks').value=DB.settings.weeks||13;
+}
+
+/* ====== IMPORT / EXPORT ====== */
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});dl(blob,'cleaners_payment_backup_'+isoToday()+'.json');toast('Backup downloaded');
+}
+async function importJSON(e){
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=async()=>{
+    let d;try{d=JSON.parse(r.result);}catch(x){toast('Invalid file',true);return;}
+    if(!d.students){toast('No students in file',true);return;}
+    if(!confirm('Import '+d.students.length+' students (and their payments) into the online database?'))return;
+    setSync('Importing…');
+    if(d.settings){await sb.from('settings').update({school:d.settings.school||'',currency:d.settings.currency||'₱',fee:+d.settings.fee||20,term_start:d.settings.start||isoToday(),term_weeks:+d.settings.weeks||13}).eq('id',1);}
+    const {data:ins,error}=await sb.from('students').insert(d.students.map(s=>({name:s.name,section:s.section||''}))).select();
+    if(error){toast(error.message,true);return;}
+    const map={};d.students.forEach((s,i)=>{if(ins[i])map[s.id]=ins[i].id;});
+    if(d.payments&&d.payments.length){
+      const pays=d.payments.filter(p=>map[p.studentId]).map(p=>({student_id:map[p.studentId],pay_date:p.date,amount:+p.amount,remarks:p.remarks||''}));
+      if(pays.length){const {error:pe}=await sb.from('payments').insert(pays);if(pe){toast(pe.message,true);return;}}
+    }
+    toast('Data imported online');await loadData();
+  };
+  r.readAsText(f);e.target.value='';
+}
+function exportCSV(){
+  const rows=[['Date','Student','Section','Amount','Remarks']];
+  DB.payments.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>rows.push([p.date,studentName(p.studentId),studentSection(p.studentId),p.amount,p.remarks||'']));
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  dl(new Blob([csv],{type:'text/csv'}),'payment_log_'+isoToday()+'.csv');toast('CSV exported');
+}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}
+
+/* ====== INIT ====== */
+document.getElementById('cDate').value=isoToday();
+document.getElementById('cDate').addEventListener('change',renderToday);
+(async()=>{
+  const {data}=await sb.auth.getSession();
+  if(data.session)onSignedIn();
+})();
+</script>
+</body>
+</html>
