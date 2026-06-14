@@ -106,7 +106,7 @@
 
 <nav>
   <button data-tab="dashboard" class="active">Dashboard</button>
-  <button data-tab="collect">Daily Collection</button>
+  <button data-tab="collect">Weekly Collection</button>
   <button data-tab="weekly">Weekly</button>
   <button data-tab="monthly">Monthly Report</button>
   <button data-tab="students">Students</button>
@@ -126,17 +126,17 @@
   <section id="collect" class="tab">
     <div class="card"><h2>Record a Collection</h2>
       <div class="row">
-        <div class="field" style="flex:0;min-width:160px"><label>Date</label><input type="date" id="cDate"></div>
+        <div class="field" style="flex:0;min-width:240px"><label>Week</label><select id="cWeek"></select></div>
         <div class="field" style="flex:2.5;min-width:300px"><label>Student</label><select id="cStudent"></select></div>
         <div class="field" style="flex:0;max-width:140px;min-width:110px"><label>Amount</label><input type="number" id="cAmount" min="0" step="0.01" placeholder="0.00"></div>
-        <div class="field"><label>Remarks (optional)</label><input type="text" id="cRemarks" placeholder="e.g. Week 1"></div>
+        <div class="field"><label>Remarks (optional)</label><input type="text" id="cRemarks" placeholder="e.g. cash / partial"></div>
         <div class="field" style="justify-content:flex-end;flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addPayment()">+ Add</button></div>
       </div>
-      <div class="muted" style="margin-top:8px">Tip: the amount defaults to the weekly fee. Set it in <b>Settings</b>.</div>
+      <div class="muted" style="margin-top:8px">Tip: the amount defaults to the weekly fee. Set the fee, term start date and number of weeks in <b>Settings</b>.</div>
     </div>
-    <div class="card"><h2>Today's Collections <span class="muted" id="todayDateLabel"></span></h2>
+    <div class="card"><h2>This Week's Collections <span class="muted" id="todayDateLabel"></span></h2>
       <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">Amount</th><th>Remarks</th><th></th></tr></thead><tbody></tbody></table></div>
-      <div class="toolbar" style="margin-top:12px"><b>Today total:&nbsp;</b><span id="todayTotal"></span></div>
+      <div class="toolbar" style="margin-top:12px"><b>Week total:&nbsp;</b><span id="todayTotal"></span></div>
     </div>
   </section>
 
@@ -367,13 +367,14 @@ async function deleteStudent(id){
   toast('Student deleted');await loadData();
 }
 async function addPayment(){
-  const date=document.getElementById('cDate').value;
+  const wi=parseInt(document.getElementById('cWeek').value);
   const studentId=document.getElementById('cStudent').value;
   const amount=parseFloat(document.getElementById('cAmount').value);
   const remarks=document.getElementById('cRemarks').value.trim();
-  if(!date){toast('Pick a date');return;}
+  if(isNaN(wi)){toast('Pick a week');return;}
   if(!studentId){toast('Add a student first');return;}
   if(!(amount>0)){toast('Enter a valid amount');return;}
+  const date=weekStartISO(wi);
   setSync('Saving…');
   const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:date,amount,remarks});
   if(error){toast(error.message,true);return;}
@@ -440,12 +441,23 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 
 /* ====== RENDERERS ====== */
 function renderAll(){
-  fillStudentSelect();renderDash();renderToday();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();
+  fillStudentSelect();fillWeekSelect();renderDash();renderWeekTab();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();
   document.getElementById('schoolLabel').textContent=DB.settings.school||'Per-Student Cleaning Fee Collection';
 }
 function fillStudentSelect(){
   const sel=document.getElementById('cStudent');
   sel.innerHTML=DB.students.length?DB.students.map(s=>`<option value="${s.id}">${esc(s.name)} ${s.section?'· '+esc(s.section):''}</option>`).join(''):'<option value="">— no students yet —</option>';
+}
+function currentWeekIndex(){return weekIndex(isoToday());}
+function weekStartISO(i){const d=new Date(DB.settings.start+'T00:00:00');d.setDate(d.getDate()+i*7);return d.toISOString().slice(0,10);}
+function fillWeekSelect(){
+  const sel=document.getElementById('cWeek');if(!sel)return;
+  const W=+DB.settings.weeks||13;const prev=sel.value;
+  let opts='';for(let i=0;i<W;i++)opts+=`<option value="${i}">Week ${i+1} · ${weekRange(i)}</option>`;
+  sel.innerHTML=opts;
+  sel.value=(prev!==''&&prev!=null&&+prev<W)?prev:String(Math.min(Math.max(currentWeekIndex(),0),W-1));
+  sel.onchange=renderWeekTab;
+  const am=document.getElementById('cAmount');if(am&&!am.value)am.value=DB.settings.fee||'';
 }
 function renderDash(){
   const exp=expectedPerStudent()*DB.students.length;
@@ -468,12 +480,13 @@ function renderDash(){
     return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${money0(e)}</td><td class="num">${money0(tp)}</td><td class="num">${money0(Math.max(b,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td><div class="bar" style="width:90px"><span style="width:${pct}%"></span></div></td></tr>`;
   }).join('');
 }
-function renderToday(){
-  const today=document.getElementById('cDate').value||isoToday();
-  document.getElementById('todayDateLabel').textContent='· '+fmtDate(today);
-  const list=DB.payments.filter(p=>p.date===today);
+function renderWeekTab(){
+  const sel=document.getElementById('cWeek');
+  const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
+  document.getElementById('todayDateLabel').textContent=wi>=0?'· Week '+(wi+1)+' ('+weekRange(wi)+')':'';
+  const list=DB.payments.filter(p=>weekIndex(p.date)===wi);
   const tb=document.querySelector('#todayTable tbody');
-  tb.innerHTML=list.length?list.map(p=>`<tr><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger" onclick="deletePayment('${p.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No collections recorded for this date yet.</td></tr>';
+  tb.innerHTML=list.length?list.map(p=>`<tr><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger" onclick="deletePayment('${p.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No collections recorded for this week yet.</td></tr>';
   document.getElementById('todayTotal').textContent=money(list.reduce((a,p)=>a+(+p.amount),0));
 }
 function renderWeekly(){
@@ -574,8 +587,6 @@ function exportCSV(){
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}
 
 /* ====== INIT ====== */
-document.getElementById('cDate').value=isoToday();
-document.getElementById('cDate').addEventListener('change',renderToday);
 (async()=>{
   const {data}=await sb.auth.getSession();
   if(data.session)onSignedIn();
