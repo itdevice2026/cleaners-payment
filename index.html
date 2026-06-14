@@ -140,8 +140,8 @@
         <div class="field"><label>Remarks (optional)</label><input type="text" id="cRemarks" placeholder="e.g. cash / partial"></div>
         <div class="field" style="justify-content:flex-end;flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addPayment()">+ Add</button></div>
       </div>
-      <div class="toolbar" style="margin-top:12px"><button class="btn sec" onclick="markAllPaid()">✓ Mark ALL students Paid for this week (weekly fee)</button><button class="btn danger" style="padding:10px 16px;font-size:14px" onclick="deleteAllWeek()">✕ Delete ALL collections for this week</button></div>
-      <div class="muted" style="margin-top:8px">Tip: pick one week (same "from" and "to") or a <b>range of weeks</b> to pay several at once — <b>Amount / week</b> is charged per week. <b>Date of Payment</b> is the day the money was received. "Mark ALL Paid" uses the record form's "from" week. Set fee, term start &amp; number of weeks in <b>Settings</b>.</div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn sec" onclick="markAllPaid()">✓ Mark ALL students Paid for selected week(s) (weekly fee)</button><button class="btn danger" style="padding:10px 16px;font-size:14px" onclick="deleteAllWeek()">✕ Delete ALL collections for selected week(s)</button></div>
+      <div class="muted" style="margin-top:8px">Tip: pick one week (same "from" and "to") or a <b>range of weeks</b> to pay several at once — <b>Amount / week</b> is charged per week. <b>Date of Payment</b> is the day the money was received. "Mark ALL Paid" and "Delete ALL" both use the selected <b>from–to week range</b> above. Set fee, term start &amp; number of weeks in <b>Settings</b>.</div>
     </div>
     <div class="card"><h2>This Week's Collections <span class="muted" id="todayDateLabel"></span></h2>
       <div class="muted" style="margin-bottom:10px">Every student is listed. "This Week" shows what they paid for the selected week; "Total Paid" is their running total across all weeks.</div>
@@ -604,19 +604,26 @@ async function markPaid(studentId,wi){
   if(error){toast(error.message,true);return;}
   toast('Marked paid');await loadData();
 }
+function recordRange(){
+  let lo=parseInt(document.getElementById('cWeek').value);
+  let hi=parseInt(document.getElementById('cWeekTo').value);
+  if(isNaN(lo))return null;if(isNaN(hi))hi=lo;if(hi<lo){const t=lo;lo=hi;hi=t;}
+  return {lo,hi,label:'week '+(lo+1)+(lo!==hi?('–'+(hi+1)):'')};
+}
 async function markAllPaid(){
-  const sel=document.getElementById('cWeek');const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
+  const r=recordRange();if(!r){toast('Pick a week');return;}
   const fee=+DB.settings.fee||0;
   if(!(fee>0)){toast('Set the weekly fee in Settings first');return;}
   if(!DB.students.length){toast('No students yet');return;}
-  const unpaid=DB.students.filter(s=>!DB.payments.some(p=>p.studentId===s.id&&payWeek(p)===wi));
-  if(!unpaid.length){toast('Everyone is already marked paid this week');return;}
-  if(!confirm('Mark '+unpaid.length+' student(s) as PAID ('+money(fee)+' each) for Week '+(wi+1)+'?'))return;
+  const payDate=document.getElementById('cPayDate').value||isoToday();
+  const rows=[];
+  DB.students.forEach(s=>{for(let i=r.lo;i<=r.hi;i++){if(DB.payments.some(p=>p.studentId===s.id&&payWeek(p)===i))continue;rows.push({student_id:s.id,pay_date:payDate,week_no:i,amount:fee,remarks:'Weekly fee'});}});
+  if(!rows.length){toast('Everyone is already paid for the selected week(s)');return;}
+  if(!confirm('Mark '+rows.length+' payment(s) as PAID ('+money(fee)+' each) for '+r.label+'?'))return;
   setSync('Saving…');
-  const rows=unpaid.map(s=>({student_id:s.id,pay_date:isoToday(),week_no:wi,amount:fee,remarks:'Weekly fee'}));
   const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
-  toast(unpaid.length+' marked paid');await loadData();
+  toast(rows.length+' marked paid ('+money(fee*rows.length)+')');await loadData();
 }
 async function deleteAllPayments(){
   if(!DB.payments.length){toast('No payments to delete');return;}
@@ -627,10 +634,10 @@ async function deleteAllPayments(){
   toast('All payments deleted');await loadData();
 }
 async function deleteAllWeek(){
-  const sel=document.getElementById('cWeek');const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
-  const ids=DB.payments.filter(p=>payWeek(p)===wi).map(p=>p.id);
-  if(!ids.length){toast('No collections to delete for this week');return;}
-  if(!confirm('Delete ALL '+ids.length+' collection(s) for Week '+(wi+1)+'? This cannot be undone.'))return;
+  const r=recordRange();if(!r){toast('Pick a week');return;}
+  const ids=DB.payments.filter(p=>payWeek(p)>=r.lo&&payWeek(p)<=r.hi).map(p=>p.id);
+  if(!ids.length){toast('No collections to delete for the selected week(s)');return;}
+  if(!confirm('Delete ALL '+ids.length+' collection(s) for '+r.label+'? This cannot be undone.'))return;
   setSync('Saving…');
   const {error}=await sb.from('payments').delete().in('id',ids);
   if(error){toast(error.message,true);return;}
