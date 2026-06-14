@@ -212,7 +212,7 @@
         <button class="btn ghost sm" onclick="window.print()">🖨 Print</button>
         <span class="right muted" id="logCount"></span>
       </div>
-      <div class="tablewrap"><table id="logTable"><thead><tr><th>Date</th><th>Student</th><th>Section</th><th class="num">Amount</th><th>Remarks</th><th></th></tr></thead><tbody></tbody></table></div></div>
+      <div class="tablewrap"><table id="logTable"><thead><tr><th>Date</th><th>Student</th><th>Section</th><th>Week</th><th class="num">Amount</th><th>Remarks</th><th></th></tr></thead><tbody></tbody></table></div></div>
   </section>
 
   <section id="settings" class="tab">
@@ -735,7 +735,7 @@ function renderLog(){
   let list=DB.payments.slice().sort((a,b)=>b.date.localeCompare(a.date));
   if(q)list=list.filter(p=>(studentName(p.studentId)+' '+(p.remarks||'')+' '+studentSection(p.studentId)).toLowerCase().includes(q));
   const tb=document.querySelector('#logTable tbody');
-  tb.innerHTML=list.length?list.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger collect-only" onclick="deletePayment('${p.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">No payments logged.</td></tr>';
+  tb.innerHTML=list.length?list.map(p=>{const w=payWeek(p);const wc=w>=0?('Wk '+(w+1)):'<span class="muted">–</span>';return `<tr><td>${fmtDate(p.date)}</td><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td>${wc}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger collect-only" onclick="deletePayment('${p.id}')">✕</button></td></tr>`;}).join(''):'<tr><td colspan="7" class="empty">No payments logged.</td></tr>';
   document.getElementById('logCount').textContent=list.length+' record(s) · '+money(list.reduce((a,p)=>a+(+p.amount),0));
 }
 async function renderUsers(){
@@ -816,8 +816,8 @@ async function importJSON(e){
   r.readAsText(f);e.target.value='';
 }
 function exportCSV(){
-  const rows=[['Date','Student','Section','Amount','Remarks']];
-  DB.payments.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>rows.push([p.date,studentName(p.studentId),studentSection(p.studentId),p.amount,p.remarks||'']));
+  const rows=[['Date','Student','Section','Week','Amount','Remarks']];
+  DB.payments.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>{const w=payWeek(p);rows.push([p.date,studentName(p.studentId),studentSection(p.studentId),w>=0?('Week '+(w+1)):'',p.amount,p.remarks||'']);});
   const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   dl(new Blob([csv],{type:'text/csv'}),'payment_log_'+isoToday()+'.csv');toast('CSV exported');
 }
