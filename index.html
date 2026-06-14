@@ -73,7 +73,7 @@
   .authswap{text-align:center;margin-top:14px;font-size:13px;color:var(--muted);}
   .authswap a{color:var(--accent);cursor:pointer;font-weight:600;}
   .syncing{font-size:12px;opacity:.85;}
-  @media print{nav,header .right,.toolbar,.noprint{display:none!important;}body{background:#fff;}.card{box-shadow:none;border:none;}}
+  @media print{nav,header,.toolbar,.noprint{display:none!important;}body{background:#fff;}.card{box-shadow:none;border:none;}main{padding:0;}}
 </style>
 </head>
 <body>
@@ -113,6 +113,7 @@
   <button data-tab="collect" class="collect-only">Weekly Collection</button>
   <button data-tab="weekly">Weekly</button>
   <button data-tab="monthly">Monthly Report</button>
+  <button data-tab="soa">SOA</button>
   <button data-tab="students" class="admin-only">Students</button>
   <button data-tab="log">Payment Log</button>
   <button data-tab="settings" class="admin-only">Settings</button>
@@ -160,6 +161,16 @@
     <div class="card"><h2>Monthly Lumpsum Collection Report</h2>
       <div class="muted" style="margin-bottom:10px">Daily/weekly collections totalled per calendar month.</div>
       <div class="tablewrap"><table id="monthlyTable"></table></div></div>
+  </section>
+
+  <section id="soa" class="tab">
+    <div class="card noprint"><h2>Statement of Account (per Student)</h2>
+      <div class="row">
+        <div class="field" style="min-width:300px"><label>Select Student</label><select id="soaStudent" onchange="renderSOA()"></select></div>
+        <div class="field" style="flex:0;min-width:auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn sec" onclick="window.print()">🖨 Print / Save as PDF</button></div>
+      </div>
+    </div>
+    <div id="soaOut"></div>
   </section>
 
   <section id="students" class="tab">
@@ -473,7 +484,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 
 /* ====== RENDERERS ====== */
 function renderAll(){
-  fillStudentSelect();fillWeekSelect();fillDaySelect();renderDash();renderWeekTab();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();if(ROLE==='admin')renderUsers();
+  fillStudentSelect();fillWeekSelect();fillDaySelect();renderDash();renderWeekTab();renderWeekly();renderMonthly();fillSOAStudent();renderSOA();renderStudents();renderLog();syncSettingsInputs();if(ROLE==='admin')renderUsers();
   document.getElementById('schoolLabel').textContent=DB.settings.school||'Per-Student Cleaning Fee Collection';
 }
 function fillStudentSelect(){
@@ -629,6 +640,55 @@ function renderMonthly(){
   body+='<tr style="background:var(--lblue);font-weight:700"><td colspan="2">TOTAL</td>';
   keys.forEach(k=>body+=`<td class="num">${colTot[k]?money0(colTot[k]):'–'}</td>`);
   body+=`<td class="num">${money0(grand)}</td></tr></tbody>`;t.innerHTML=head+body;
+}
+function fillSOAStudent(){
+  const sel=document.getElementById('soaStudent');if(!sel)return;const prev=sel.value;
+  sel.innerHTML=DB.students.length?'<option value="">— select a student —</option>'+DB.students.map(s=>`<option value="${s.id}">${esc(s.name)}${s.section?' · '+esc(s.section):''}</option>`).join(''):'<option value="">— no students —</option>';
+  if(prev)sel.value=prev;
+}
+function renderSOA(){
+  const out=document.getElementById('soaOut');if(!out)return;
+  const sel=document.getElementById('soaStudent');const sid=sel?sel.value:'';
+  const s=DB.students.find(x=>x.id===sid);
+  if(!s){out.innerHTML='<div class="card"><div class="empty">Select a student above to view their Statement of Account.</div></div>';return;}
+  const W=+DB.settings.weeks||13;const fee=+DB.settings.fee||0;
+  let rows='',cumDue=0,cumPaid=0;
+  for(let i=0;i<W;i++){
+    const wkPays=DB.payments.filter(p=>p.studentId===s.id&&weekIndex(p.date)===i);
+    const paid=wkPays.reduce((a,p)=>a+(+p.amount),0);
+    const dates=[...new Set(wkPays.map(p=>p.date))].sort().map(fmtDay).join(', ');
+    cumDue+=fee;cumPaid+=paid;const bal=cumDue-cumPaid;
+    const st=fee>0&&paid>=fee?['paid','PAID']:paid>0?['partial','PARTIAL']:['unpaid','UNPAID'];
+    rows+=`<tr><td>Week ${i+1}</td><td>${weekRange(i)}</td><td class="num">${money(fee)}</td><td class="num">${paid?money(paid):'<span class="muted">–</span>'}</td><td>${dates||'<span class="muted">–</span>'}</td><td class="num">${money(bal)}</td><td><span class="pill ${st[0]}">${st[1]}</span></td></tr>`;
+  }
+  const paidAll=totalPaid(s.id);const expected=fee*W;const balance=expected-paidAll;
+  const overall=expected>0&&balance<=0?'FULLY PAID':paidAll>0?'PARTIAL':'UNPAID';
+  const ocls=expected>0&&balance<=0?'paid':paidAll>0?'partial':'unpaid';
+  out.innerHTML=`<div class="card">
+    <div style="text-align:center;margin-bottom:8px">
+      <div style="font-size:18px;font-weight:800;color:var(--navy)">${esc(DB.settings.school||'Cleaning Fee Collection')}</div>
+      <div style="font-size:15px;font-weight:700;letter-spacing:1px;color:var(--blue)">STATEMENT OF ACCOUNT</div>
+      <div class="muted">Cleaning Fee · Generated ${fmtDate(isoToday())}</div>
+    </div>
+    <div class="row" style="margin:14px 0;gap:24px">
+      <div class="field" style="flex:0;min-width:220px"><label>Student</label><div style="font-size:15px"><b>${esc(s.name)}</b></div></div>
+      <div class="field" style="flex:0;min-width:160px"><label>Class / Section</label><div>${esc(s.section||'—')}</div></div>
+      <div class="field" style="flex:0;min-width:120px"><label>Weekly Fee</label><div>${money(fee)}</div></div>
+      <div class="field" style="flex:0;min-width:100px"><label>Term Weeks</label><div>${W}</div></div>
+    </div>
+    <div class="tablewrap" style="max-height:none">
+      <table><thead><tr><th>Week</th><th>Period (Mon–Fri)</th><th class="num">Amount Due</th><th class="num">Amount Paid</th><th>Date Paid</th><th class="num">Balance</th><th>Status</th></tr></thead>
+      <tbody>${rows}
+        <tr style="background:var(--lblue);font-weight:700"><td colspan="2">TOTAL</td><td class="num">${money(expected)}</td><td class="num">${money(paidAll)}</td><td></td><td class="num">${money(Math.max(balance,0))}</td><td><span class="pill ${ocls}">${overall}</span></td></tr>
+      </tbody></table>
+    </div>
+    <div class="stats" style="margin-top:16px">
+      <div class="stat"><div class="v">${money0(expected)}</div><div class="l">Total Expected</div></div>
+      <div class="stat"><div class="v">${money0(paidAll)}</div><div class="l">Total Paid</div></div>
+      <div class="stat"><div class="v">${money0(Math.max(balance,0))}</div><div class="l">Outstanding Balance</div></div>
+    </div>
+    <div class="muted" style="margin-top:18px">This statement reflects records as of ${fmtDate(isoToday())}. ____________________  Collector's signature</div>
+  </div>`;
 }
 function renderStudents(){
   document.getElementById('studentCount').textContent=DB.students.length;
