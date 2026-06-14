@@ -249,7 +249,7 @@
         <div class="field" style="flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addUser()">+ Add User</button></div>
       </div>
       <div class="muted" style="margin-bottom:10px">Share the temporary password with the person; they can change it later via password reset. The account is created already confirmed — they can sign in immediately.</div>
-      <div class="tablewrap"><table id="usersTable"><thead><tr><th>Email</th><th>Current Role</th><th>Change Role</th></tr></thead><tbody></tbody></table></div>
+      <div class="tablewrap"><table id="usersTable"><thead><tr><th>Email</th><th>Current Role</th><th>Change Role</th><th>Action</th></tr></thead><tbody></tbody></table></div>
       <div class="muted" style="margin-top:10px">New people automatically get the <b>Encoder</b> role the first time they sign in. To add someone: have them sign up on the login screen (or create them in Supabase), then set their role here.</div>
     </div>
   </section>
@@ -268,6 +268,7 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 /* ====== local cache ====== */
 let DB={settings:{school:'',currency:'₱',fee:20,start:isoToday(),weeks:13},students:[],payments:[]};
 let ROLE='viewer';
+let MYUID='';
 function applyRBAC(){document.body.className='role-'+ROLE;}
 
 /* ====== utils ====== */
@@ -318,6 +319,7 @@ async function doAuth(){
 async function signOut(){await sb.auth.signOut();location.reload();}
 async function onSignedIn(){
   const {data}=await sb.auth.getUser();
+  MYUID=data?.user?.id||'';
   let role='viewer';try{const r=await sb.rpc('my_role');if(!r.error&&r.data)role=r.data;}catch(e){}
   ROLE=role;applyRBAC();
   document.getElementById('userLabel').textContent=(data?.user?.email||'')+' · '+ROLE.toUpperCase();
@@ -706,12 +708,25 @@ function renderLog(){
 async function renderUsers(){
   const tb=document.querySelector('#usersTable tbody');if(!tb)return;
   const {data,error}=await sb.from('user_roles').select('*').order('email');
-  if(error){tb.innerHTML='<tr><td colspan="3" class="empty">'+esc(error.message)+'</td></tr>';return;}
+  if(error){tb.innerHTML='<tr><td colspan="4" class="empty">'+esc(error.message)+'</td></tr>';return;}
   tb.innerHTML=(data||[]).map(u=>{
     const cls=u.role==='admin'?'paid':u.role==='encoder'?'partial':'unpaid';
     const opts=['admin','encoder','viewer'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('');
-    return `<tr><td>${esc(u.email||'')}</td><td><span class="pill ${cls}">${(u.role||'').toUpperCase()}</span></td><td><select onchange="changeUserRole('${u.user_id}',this.value)">${opts}</select></td></tr>`;
-  }).join('')||'<tr><td colspan="3" class="empty">No users yet.</td></tr>';
+    const del=u.user_id===MYUID?'<span class="muted">(you)</span>':`<button class="btn danger" onclick="deleteUser('${u.user_id}','${esc(u.email||'')}')">✕ Delete</button>`;
+    return `<tr><td>${esc(u.email||'')}</td><td><span class="pill ${cls}">${(u.role||'').toUpperCase()}</span></td><td><select onchange="changeUserRole('${u.user_id}',this.value)">${opts}</select></td><td>${del}</td></tr>`;
+  }).join('')||'<tr><td colspan="4" class="empty">No users yet.</td></tr>';
+}
+async function deleteUser(userId,email){
+  if(!confirm('Delete user '+email+'?\nThis permanently removes their login and access.'))return;
+  setSync('Saving…');
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){toast('Session expired, sign in again',true);setSync('');return;}
+  try{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/create-user',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'delete',user_id:userId})});
+    const j=await res.json().catch(()=>({error:'Unexpected response'}));
+    if(!res.ok||j.error){toast(j.error||'Failed to delete user',true);setSync('');return;}
+    toast('User deleted');setSync('');renderUsers();
+  }catch(e){toast('Network error deleting user',true);setSync('');}
 }
 async function addUser(){
   const email=document.getElementById('nuEmail').value.trim().toLowerCase();
