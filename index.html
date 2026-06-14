@@ -231,6 +231,13 @@
   <section id="users" class="tab">
     <div class="card"><h2>Users &amp; Roles</h2>
       <div class="muted" style="margin-bottom:10px"><b>Admin</b>: full control (students, settings, users, payments). <b>Encoder</b>: record/edit payments only. <b>Viewer</b>: read-only dashboard &amp; reports.</div>
+      <div class="row" style="margin-bottom:16px;align-items:flex-end">
+        <div class="field" style="min-width:220px"><label>New User Email</label><input type="email" id="nuEmail" placeholder="person@example.com"></div>
+        <div class="field" style="max-width:190px"><label>Temporary Password</label><input type="text" id="nuPass" placeholder="min 6 characters"></div>
+        <div class="field" style="max-width:150px"><label>Role</label><select id="nuRole"><option value="encoder">encoder</option><option value="admin">admin</option><option value="viewer">viewer</option></select></div>
+        <div class="field" style="flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addUser()">+ Add User</button></div>
+      </div>
+      <div class="muted" style="margin-bottom:10px">Share the temporary password with the person; they can change it later via password reset. The account is created already confirmed — they can sign in immediately.</div>
       <div class="tablewrap"><table id="usersTable"><thead><tr><th>Email</th><th>Current Role</th><th>Change Role</th></tr></thead><tbody></tbody></table></div>
       <div class="muted" style="margin-top:10px">New people automatically get the <b>Encoder</b> role the first time they sign in. To add someone: have them sign up on the login screen (or create them in Supabase), then set their role here.</div>
     </div>
@@ -645,6 +652,23 @@ async function renderUsers(){
     const opts=['admin','encoder','viewer'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('');
     return `<tr><td>${esc(u.email||'')}</td><td><span class="pill ${cls}">${(u.role||'').toUpperCase()}</span></td><td><select onchange="changeUserRole('${u.user_id}',this.value)">${opts}</select></td></tr>`;
   }).join('')||'<tr><td colspan="3" class="empty">No users yet.</td></tr>';
+}
+async function addUser(){
+  const email=document.getElementById('nuEmail').value.trim().toLowerCase();
+  const password=document.getElementById('nuPass').value;
+  const role=document.getElementById('nuRole').value;
+  if(!email||!email.includes('@')){toast('Enter a valid email');return;}
+  if(password.length<6){toast('Password must be at least 6 characters');return;}
+  setSync('Saving…');
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){toast('Session expired, please sign in again',true);setSync('');return;}
+  try{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/create-user',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+session.access_token},body:JSON.stringify({email,password,role})});
+    const j=await res.json().catch(()=>({error:'Unexpected response'}));
+    if(!res.ok||j.error){toast(j.error||'Failed to add user',true);setSync('');return;}
+    document.getElementById('nuEmail').value='';document.getElementById('nuPass').value='';
+    toast('User created: '+email);setSync('');renderUsers();
+  }catch(e){toast('Network error creating user',true);setSync('');}
 }
 async function changeUserRole(userId,role){
   setSync('Saving…');
