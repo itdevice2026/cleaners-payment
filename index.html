@@ -59,6 +59,10 @@
   .toast.show{opacity:1;}
   .toast.err{background:var(--red);}
   .inline{display:flex;gap:6px;align-items:center;}
+  /* RBAC gating */
+  .admin-only,.collect-only{display:none !important;}
+  body.role-admin .admin-only{display:inline-block !important;}
+  body.role-admin .collect-only,body.role-encoder .collect-only{display:inline-block !important;}
   /* Auth */
   #authScreen{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy),var(--blue));display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
   .authbox{background:#fff;border-radius:14px;padding:30px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.3);}
@@ -98,7 +102,7 @@
     <span class="syncing" id="syncStatus"></span>
     <span class="syncing" id="userLabel"></span>
     <button class="btn ghost sm" onclick="exportJSON()">⭳ Backup</button>
-    <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⭱ Restore</button>
+    <button class="btn ghost sm admin-only" onclick="document.getElementById('importFile').click()">⭱ Restore</button>
     <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importJSON(event)">
     <button class="btn ghost sm" onclick="signOut()">Sign Out</button>
   </div>
@@ -106,12 +110,13 @@
 
 <nav>
   <button data-tab="dashboard" class="active">Dashboard</button>
-  <button data-tab="collect">Weekly Collection</button>
+  <button data-tab="collect" class="collect-only">Weekly Collection</button>
   <button data-tab="weekly">Weekly</button>
   <button data-tab="monthly">Monthly Report</button>
-  <button data-tab="students">Students</button>
+  <button data-tab="students" class="admin-only">Students</button>
   <button data-tab="log">Payment Log</button>
-  <button data-tab="settings">Settings</button>
+  <button data-tab="settings" class="admin-only">Settings</button>
+  <button data-tab="users" class="admin-only">Users &amp; Roles</button>
 </nav>
 
 <main>
@@ -222,6 +227,14 @@
       <div class="muted" style="margin-top:8px">Restore accepts a backup from the offline version too — a great way to move your existing data online.</div>
     </div>
   </section>
+
+  <section id="users" class="tab">
+    <div class="card"><h2>Users &amp; Roles</h2>
+      <div class="muted" style="margin-bottom:10px"><b>Admin</b>: full control (students, settings, users, payments). <b>Encoder</b>: record/edit payments only. <b>Viewer</b>: read-only dashboard &amp; reports.</div>
+      <div class="tablewrap"><table id="usersTable"><thead><tr><th>Email</th><th>Current Role</th><th>Change Role</th></tr></thead><tbody></tbody></table></div>
+      <div class="muted" style="margin-top:10px">New people automatically get the <b>Encoder</b> role the first time they sign in. To add someone: have them sign up on the login screen (or create them in Supabase), then set their role here.</div>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -236,6 +249,8 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 /* ====== local cache ====== */
 let DB={settings:{school:'',currency:'₱',fee:20,start:isoToday(),weeks:13},students:[],payments:[]};
+let ROLE='viewer';
+function applyRBAC(){document.body.className='role-'+ROLE;}
 
 /* ====== utils ====== */
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
@@ -285,7 +300,9 @@ async function doAuth(){
 async function signOut(){await sb.auth.signOut();location.reload();}
 async function onSignedIn(){
   const {data}=await sb.auth.getUser();
-  document.getElementById('userLabel').textContent=data?.user?.email||'';
+  let role='viewer';try{const r=await sb.rpc('my_role');if(!r.error&&r.data)role=r.data;}catch(e){}
+  ROLE=role;applyRBAC();
+  document.getElementById('userLabel').textContent=(data?.user?.email||'')+' · '+ROLE.toUpperCase();
   document.getElementById('authScreen').style.display='none';
   document.getElementById('app').style.display='block';
   await loadData();
@@ -449,7 +466,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 
 /* ====== RENDERERS ====== */
 function renderAll(){
-  fillStudentSelect();fillWeekSelect();fillDaySelect();renderDash();renderWeekTab();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();
+  fillStudentSelect();fillWeekSelect();fillDaySelect();renderDash();renderWeekTab();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();if(ROLE==='admin')renderUsers();
   document.getElementById('schoolLabel').textContent=DB.settings.school||'Per-Student Cleaning Fee Collection';
 }
 function fillStudentSelect(){
@@ -616,8 +633,24 @@ function renderLog(){
   let list=DB.payments.slice().sort((a,b)=>b.date.localeCompare(a.date));
   if(q)list=list.filter(p=>(studentName(p.studentId)+' '+(p.remarks||'')+' '+studentSection(p.studentId)).toLowerCase().includes(q));
   const tb=document.querySelector('#logTable tbody');
-  tb.innerHTML=list.length?list.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger" onclick="deletePayment('${p.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">No payments logged.</td></tr>';
+  tb.innerHTML=list.length?list.map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${esc(studentName(p.studentId))}</td><td>${esc(studentSection(p.studentId))}</td><td class="num">${money(p.amount)}</td><td>${esc(p.remarks)}</td><td><button class="btn danger collect-only" onclick="deletePayment('${p.id}')">✕</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">No payments logged.</td></tr>';
   document.getElementById('logCount').textContent=list.length+' record(s) · '+money(list.reduce((a,p)=>a+(+p.amount),0));
+}
+async function renderUsers(){
+  const tb=document.querySelector('#usersTable tbody');if(!tb)return;
+  const {data,error}=await sb.from('user_roles').select('*').order('email');
+  if(error){tb.innerHTML='<tr><td colspan="3" class="empty">'+esc(error.message)+'</td></tr>';return;}
+  tb.innerHTML=(data||[]).map(u=>{
+    const cls=u.role==='admin'?'paid':u.role==='encoder'?'partial':'unpaid';
+    const opts=['admin','encoder','viewer'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('');
+    return `<tr><td>${esc(u.email||'')}</td><td><span class="pill ${cls}">${(u.role||'').toUpperCase()}</span></td><td><select onchange="changeUserRole('${u.user_id}',this.value)">${opts}</select></td></tr>`;
+  }).join('')||'<tr><td colspan="3" class="empty">No users yet.</td></tr>';
+}
+async function changeUserRole(userId,role){
+  setSync('Saving…');
+  const {error}=await sb.from('user_roles').update({role}).eq('user_id',userId);
+  if(error){toast(error.message,true);return;}
+  toast('Role updated');renderUsers();
 }
 function syncSettingsInputs(){
   document.getElementById('setSchool').value=DB.settings.school||'';
