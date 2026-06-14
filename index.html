@@ -206,6 +206,7 @@
         <div class="field" style="max-width:180px"><label>Term Start Date</label><input type="date" id="setStart"></div>
         <div class="field" style="max-width:180px"><label>Number of Weeks (Term)</label><input type="number" id="setWeeks" min="1" max="53"></div>
       </div>
+      <div class="muted" style="margin-top:8px">Each week runs <b>Monday–Friday</b> (5 collection days). The term start date automatically snaps to the first Monday on or after it.</div>
       <div class="toolbar" style="margin-top:16px"><button class="btn" onclick="saveSettings()">Save Settings</button></div>
     </div>
     <div class="card"><h2>Data</h2>
@@ -236,7 +237,8 @@ let DB={settings:{school:'',currency:'₱',fee:20,start:isoToday(),weeks:13},stu
 
 /* ====== utils ====== */
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-function isoToday(){return new Date().toISOString().slice(0,10);}
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isoToday(){return ymd(new Date());}
 function money(n){const c=DB.settings.currency||'₱';return c+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function money0(n){const c=DB.settings.currency||'₱';return c+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});}
 function toast(m,err){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
@@ -428,8 +430,9 @@ async function loadSample(){
 }
 
 /* ====== TERM / WEEK helpers ====== */
-function weekIndex(dateStr){const start=new Date(DB.settings.start+'T00:00:00');const d=new Date(dateStr+'T00:00:00');return Math.floor(Math.floor((d-start)/(864e5))/7);}
-function weekRange(i){const start=new Date(DB.settings.start+'T00:00:00');const a=new Date(start);a.setDate(a.getDate()+i*7);const b=new Date(a);b.setDate(b.getDate()+6);const f=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});return f(a)+' – '+f(b);}
+function termMonday(){const d=new Date(DB.settings.start+'T00:00:00');d.setDate(d.getDate()+((8-d.getDay())%7));return d;}
+function weekIndex(dateStr){const a=termMonday();const d=new Date(dateStr+'T00:00:00');return Math.floor(Math.round((d-a)/(864e5))/7);}
+function weekRange(i){const mon=termMonday();mon.setDate(mon.getDate()+i*7);const fri=new Date(mon);fri.setDate(fri.getDate()+4);const f=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});return f(mon)+' – '+f(fri);}
 function totalPaid(studentId){return DB.payments.filter(p=>p.studentId===studentId).reduce((a,p)=>a+(+p.amount),0);}
 function expectedPerStudent(){return (+DB.settings.fee||0)*(+DB.settings.weeks||0);}
 
@@ -450,7 +453,7 @@ function fillStudentSelect(){
   sel.innerHTML=DB.students.length?DB.students.map(s=>`<option value="${s.id}">${esc(s.name)} ${s.section?'· '+esc(s.section):''}</option>`).join(''):'<option value="">— no students yet —</option>';
 }
 function currentWeekIndex(){return weekIndex(isoToday());}
-function weekStartISO(i){const d=new Date(DB.settings.start+'T00:00:00');d.setDate(d.getDate()+i*7);return d.toISOString().slice(0,10);}
+function weekStartISO(i){const d=termMonday();d.setDate(d.getDate()+i*7);return ymd(d);}
 function fillWeekSelect(){
   const sel=document.getElementById('cWeek');if(!sel)return;
   const W=+DB.settings.weeks||13;const prev=sel.value;
@@ -519,8 +522,8 @@ function renderWeekly(){
 }
 function monthKeys(){
   const set={};DB.payments.forEach(p=>set[p.date.slice(0,7)]=true);
-  const start=new Date(DB.settings.start+'T00:00:00');const W=+DB.settings.weeks||13;
-  for(let i=0;i<W;i++){const d=new Date(start);d.setDate(d.getDate()+i*7);set[d.toISOString().slice(0,7)]=true;}
+  const W=+DB.settings.weeks||13;
+  for(let i=0;i<W;i++)set[weekStartISO(i).slice(0,7)]=true;
   return Object.keys(set).sort();
 }
 function monthLabel(k){return new Date(k+'-01T00:00:00').toLocaleDateString('en-US',{month:'short',year:'numeric'});}
