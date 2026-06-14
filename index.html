@@ -340,7 +340,7 @@ async function loadData(){
   ]);
   if(stu.error||pay.error){toast('Load error: '+((stu.error||pay.error).message),true);setSync('');return;}
   DB.students=(stu.data||[]).map(r=>({id:r.id,name:r.name,section:r.section||''}));
-  DB.payments=(pay.data||[]).map(r=>({id:r.id,studentId:r.student_id,date:r.pay_date,amount:+r.amount,remarks:r.remarks||''}));
+  DB.payments=(pay.data||[]).map(r=>({id:r.id,studentId:r.student_id,date:r.pay_date,amount:+r.amount,remarks:r.remarks||'',wk:(r.week_no==null?null:+r.week_no)}));
   const s=set.data||{};
   DB.settings={school:s.school||'',currency:s.currency||'₱',fee:+s.fee||0,start:s.term_start||isoToday(),weeks:s.term_weeks||13};
   setSync('✓ Synced');setTimeout(()=>setSync(''),1500);
@@ -423,12 +423,7 @@ async function addPayment(){
   if(!studentId){toast('Add a student first');return;}
   if(!(amount>0)){toast('Enter a valid amount per week');return;}
   const rows=[];
-  for(let i=lo;i<=hi;i++){
-    const inWk=weekIndex(payDate)===i;
-    const pd=inWk?payDate:weekStartISO(i);
-    const note=inWk?remark:((remark?remark+' · ':'')+'Paid '+fmtDay(payDate));
-    rows.push({student_id:studentId,pay_date:pd,amount,remarks:note});
-  }
+  for(let i=lo;i<=hi;i++) rows.push({student_id:studentId,pay_date:payDate,week_no:i,amount,remarks:remark});
   setSync('Saving…');
   const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
@@ -484,6 +479,7 @@ async function loadSample(){
 function termMonday(){const d=new Date(DB.settings.start+'T00:00:00');d.setDate(d.getDate()+((8-d.getDay())%7));return d;}
 function weekIndex(dateStr){const a=termMonday();const d=new Date(dateStr+'T00:00:00');return Math.floor(Math.round((d-a)/(864e5))/7);}
 function weekRange(i){const mon=termMonday();mon.setDate(mon.getDate()+i*7);const fri=new Date(mon);fri.setDate(fri.getDate()+4);const f=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});return f(mon)+' – '+f(fri);}
+function payWeek(p){return (p&&p.wk!=null)?p.wk:weekIndex(p.date);}
 function totalPaid(studentId){return DB.payments.filter(p=>p.studentId===studentId).reduce((a,p)=>a+(+p.amount),0);}
 function expectedPerStudent(){return (+DB.settings.fee||0)*(+DB.settings.weeks||0);}
 
@@ -559,7 +555,7 @@ function renderWeekTab(){
   const tb=document.querySelector('#todayTable tbody');
   if(!DB.students.length){tb.innerHTML='<tr><td colspan="8" class="empty">No students yet. Add some in the Students tab.</td></tr>';document.getElementById('todayTotal').textContent=money(0);return;}
   const fee=+DB.settings.fee||0,exp=expectedPerStudent(),dueR=fee*(hi-lo+1);
-  const inRange=p=>{const wi=weekIndex(p.date);return wi>=lo&&wi<=hi;};
+  const inRange=p=>{const wi=payWeek(p);return wi>=lo&&wi<=hi;};
   const weekSum=DB.payments.filter(inRange).reduce((a,p)=>a+(+p.amount),0);
   const q=(document.getElementById('weekSearch')?.value||'').toLowerCase().trim();
   const list=q?DB.students.filter(s=>((s.name||'')+' '+(s.section||'')).toLowerCase().includes(q)):DB.students;
@@ -576,7 +572,7 @@ function renderWeekTab(){
   document.getElementById('todayTotal').textContent=money(weekSum);
 }
 async function deleteRange(studentId,lo,hi){
-  const ids=DB.payments.filter(p=>p.studentId===studentId&&weekIndex(p.date)>=lo&&weekIndex(p.date)<=hi).map(p=>p.id);
+  const ids=DB.payments.filter(p=>p.studentId===studentId&&payWeek(p)>=lo&&payWeek(p)<=hi).map(p=>p.id);
   if(!ids.length)return;
   if(!confirm("Delete "+ids.length+" payment(s) for "+studentName(studentId)+" in the selected week(s)?"))return;
   setSync('Saving…');
@@ -595,7 +591,7 @@ async function markPaid(studentId,wi){
   const fee=+DB.settings.fee||0;
   if(!(fee>0)){toast('Set the weekly fee in Settings first');return;}
   setSync('Saving…');
-  const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:payDateForWeek(wi),amount:fee,remarks:'Weekly fee'});
+  const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:isoToday(),week_no:wi,amount:fee,remarks:'Weekly fee'});
   if(error){toast(error.message,true);return;}
   toast('Marked paid');await loadData();
 }
@@ -604,18 +600,18 @@ async function markAllPaid(){
   const fee=+DB.settings.fee||0;
   if(!(fee>0)){toast('Set the weekly fee in Settings first');return;}
   if(!DB.students.length){toast('No students yet');return;}
-  const unpaid=DB.students.filter(s=>!DB.payments.some(p=>p.studentId===s.id&&weekIndex(p.date)===wi));
+  const unpaid=DB.students.filter(s=>!DB.payments.some(p=>p.studentId===s.id&&payWeek(p)===wi));
   if(!unpaid.length){toast('Everyone is already marked paid this week');return;}
   if(!confirm('Mark '+unpaid.length+' student(s) as PAID ('+money(fee)+' each) for Week '+(wi+1)+'?'))return;
   setSync('Saving…');
-  const rows=unpaid.map(s=>({student_id:s.id,pay_date:payDateForWeek(wi),amount:fee,remarks:'Weekly fee'}));
+  const rows=unpaid.map(s=>({student_id:s.id,pay_date:isoToday(),week_no:wi,amount:fee,remarks:'Weekly fee'}));
   const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
   toast(unpaid.length+' marked paid');await loadData();
 }
 async function deleteAllWeek(){
   const sel=document.getElementById('cWeek');const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
-  const ids=DB.payments.filter(p=>weekIndex(p.date)===wi).map(p=>p.id);
+  const ids=DB.payments.filter(p=>payWeek(p)===wi).map(p=>p.id);
   if(!ids.length){toast('No collections to delete for this week');return;}
   if(!confirm('Delete ALL '+ids.length+' collection(s) for Week '+(wi+1)+'? This cannot be undone.'))return;
   setSync('Saving…');
@@ -624,7 +620,7 @@ async function deleteAllWeek(){
   toast(ids.length+' record(s) deleted');await loadData();
 }
 async function deleteWeekPayment(studentId,wi){
-  const ids=DB.payments.filter(p=>p.studentId===studentId&&weekIndex(p.date)===wi).map(p=>p.id);
+  const ids=DB.payments.filter(p=>p.studentId===studentId&&payWeek(p)===wi).map(p=>p.id);
   if(!ids.length)return;
   if(!confirm("Delete this week's collection for "+studentName(studentId)+"? ("+ids.length+" entr"+(ids.length>1?'ies':'y')+")"))return;
   setSync('Saving…');
@@ -642,7 +638,7 @@ function renderWeekly(){
   const weekTotals=Array(W).fill(0);let body='<tbody>';
   DB.students.forEach(s=>{
     const cells=Array(W).fill(0);
-    DB.payments.filter(p=>p.studentId===s.id).forEach(p=>{const wi=weekIndex(p.date);if(wi>=0&&wi<W)cells[wi]+=(+p.amount);});
+    DB.payments.filter(p=>p.studentId===s.id).forEach(p=>{const wi=payWeek(p);if(wi>=0&&wi<W)cells[wi]+=(+p.amount);});
     let rowTot=0;body+=`<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td>`;
     cells.forEach((c,i)=>{weekTotals[i]+=c;rowTot+=c;body+=`<td class="num">${c?money0(c):'<span class="muted">–</span>'}</td>`;});
     body+=`<td class="num"><b>${money0(rowTot)}</b></td></tr>`;
@@ -690,7 +686,7 @@ function renderSOA(){
   const W=+DB.settings.weeks||13;const fee=+DB.settings.fee||0;
   let rows='',cumDue=0,cumPaid=0;
   for(let i=0;i<W;i++){
-    const wkPays=DB.payments.filter(p=>p.studentId===s.id&&weekIndex(p.date)===i);
+    const wkPays=DB.payments.filter(p=>p.studentId===s.id&&payWeek(p)===i);
     const paid=wkPays.reduce((a,p)=>a+(+p.amount),0);
     const dates=[...new Set(wkPays.map(p=>p.date))].sort().map(fmtDay).join(', ');
     cumDue+=fee;cumPaid+=paid;const bal=cumDue-cumPaid;
