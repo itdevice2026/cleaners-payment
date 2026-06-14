@@ -126,8 +126,9 @@
   <section id="collect" class="tab">
     <div class="card"><h2>Record a Collection</h2>
       <div class="row">
-        <div class="field" style="flex:0;min-width:240px"><label>Week</label><select id="cWeek"></select></div>
-        <div class="field" style="flex:2.5;min-width:300px"><label>Student</label><select id="cStudent"></select></div>
+        <div class="field" style="flex:0;min-width:230px"><label>Week</label><select id="cWeek"></select></div>
+        <div class="field" style="flex:0;min-width:150px"><label>Day Paid</label><select id="cDay"></select></div>
+        <div class="field" style="flex:2;min-width:260px"><label>Student</label><select id="cStudent"></select></div>
         <div class="field" style="flex:0;max-width:140px;min-width:110px"><label>Amount</label><input type="number" id="cAmount" min="0" step="0.01" placeholder="0.00"></div>
         <div class="field"><label>Remarks (optional)</label><input type="text" id="cRemarks" placeholder="e.g. cash / partial"></div>
         <div class="field" style="justify-content:flex-end;flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addPayment()">+ Add</button></div>
@@ -137,7 +138,7 @@
     </div>
     <div class="card"><h2>This Week's Collections <span class="muted" id="todayDateLabel"></span></h2>
       <div class="muted" style="margin-bottom:10px">Every student is listed. "This Week" shows what they paid for the selected week; "Total Paid" is their running total across all weeks.</div>
-      <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">This Week</th><th class="num">Total Paid</th><th class="num">Balance</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody></table></div>
+      <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">This Week</th><th>Date Paid</th><th class="num">Total Paid</th><th class="num">Balance</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody></table></div>
       <div class="toolbar" style="margin-top:12px"><b>Week total collected:&nbsp;</b><span id="todayTotal"></span></div>
     </div>
   </section>
@@ -244,6 +245,7 @@ function money(n){const c=DB.settings.currency||'₱';return c+(Number(n)||0).to
 function money0(n){const c=DB.settings.currency||'₱';return c+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});}
 function toast(m,err){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
 function fmtDate(s){return new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function fmtDay(s){return new Date(s+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});}
 function studentName(id){const s=DB.students.find(x=>x.id===id);return s?s.name:'—';}
 function studentSection(id){const s=DB.students.find(x=>x.id===id);return s?s.section:'';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -378,7 +380,8 @@ async function addPayment(){
   if(isNaN(wi)){toast('Pick a week');return;}
   if(!studentId){toast('Add a student first');return;}
   if(!(amount>0)){toast('Enter a valid amount');return;}
-  const date=weekStartISO(wi);
+  const off=parseInt(document.getElementById('cDay').value)||0;
+  const date=dayDateISO(wi,off);
   setSync('Saving…');
   const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:date,amount,remarks});
   if(error){toast(error.message,true);return;}
@@ -446,7 +449,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 
 /* ====== RENDERERS ====== */
 function renderAll(){
-  fillStudentSelect();fillWeekSelect();renderDash();renderWeekTab();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();
+  fillStudentSelect();fillWeekSelect();fillDaySelect();renderDash();renderWeekTab();renderWeekly();renderMonthly();renderStudents();renderLog();syncSettingsInputs();
   document.getElementById('schoolLabel').textContent=DB.settings.school||'Per-Student Cleaning Fee Collection';
 }
 function fillStudentSelect(){
@@ -455,14 +458,27 @@ function fillStudentSelect(){
 }
 function currentWeekIndex(){return weekIndex(isoToday());}
 function weekStartISO(i){const d=termMonday();d.setDate(d.getDate()+i*7);return ymd(d);}
+function dayDateISO(wi,off){const d=new Date(weekStartISO(wi)+'T00:00:00');d.setDate(d.getDate()+(+off||0));return ymd(d);}
+function payDateForWeek(wi){const t=isoToday();return weekIndex(t)===wi?t:weekStartISO(wi);}
 function fillWeekSelect(){
   const sel=document.getElementById('cWeek');if(!sel)return;
   const W=+DB.settings.weeks||13;const prev=sel.value;
   let opts='';for(let i=0;i<W;i++)opts+=`<option value="${i}">Week ${i+1} · ${weekRange(i)}</option>`;
   sel.innerHTML=opts;
   sel.value=(prev!==''&&prev!=null&&+prev<W)?prev:String(Math.min(Math.max(currentWeekIndex(),0),W-1));
-  sel.onchange=renderWeekTab;
+  sel.onchange=()=>{fillDaySelect();renderWeekTab();};
   const am=document.getElementById('cAmount');if(am&&!am.value)am.value=DB.settings.fee||'';
+}
+function fillDaySelect(){
+  const sel=document.getElementById('cDay');if(!sel)return;
+  const wsel=document.getElementById('cWeek');const wi=wsel&&wsel.value!==''?parseInt(wsel.value):Math.max(currentWeekIndex(),0);
+  const monISO=weekStartISO(Math.max(wi,0));const prev=sel.value;const names=['Mon','Tue','Wed','Thu','Fri'];
+  let opts='';for(let k=0;k<5;k++){const d=new Date(monISO+'T00:00:00');d.setDate(d.getDate()+k);opts+=`<option value="${k}">${names[k]} · ${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</option>`;}
+  sel.innerHTML=opts;
+  let def='0';
+  if(prev!==''&&prev!=null&&+prev<5)def=prev;
+  else{const t=isoToday();if(weekIndex(t)===wi){const off=Math.round((new Date(t+'T00:00:00')-new Date(monISO+'T00:00:00'))/864e5);if(off>=0&&off<5)def=String(off);}}
+  sel.value=def;
 }
 function renderDash(){
   const exp=expectedPerStudent()*DB.students.length;
@@ -490,14 +506,17 @@ function renderWeekTab(){
   const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
   document.getElementById('todayDateLabel').textContent=wi>=0?'· Week '+(wi+1)+' ('+weekRange(wi)+')':'';
   const tb=document.querySelector('#todayTable tbody');
-  if(!DB.students.length){tb.innerHTML='<tr><td colspan="7" class="empty">No students yet. Add some in the Students tab.</td></tr>';document.getElementById('todayTotal').textContent=money(0);return;}
+  if(!DB.students.length){tb.innerHTML='<tr><td colspan="8" class="empty">No students yet. Add some in the Students tab.</td></tr>';document.getElementById('todayTotal').textContent=money(0);return;}
   const exp=expectedPerStudent();let weekSum=0;
   tb.innerHTML=DB.students.map(s=>{
-    const thisWeek=DB.payments.filter(p=>p.studentId===s.id&&weekIndex(p.date)===wi).reduce((a,p)=>a+(+p.amount),0);
+    const wkPays=DB.payments.filter(p=>p.studentId===s.id&&weekIndex(p.date)===wi);
+    const thisWeek=wkPays.reduce((a,p)=>a+(+p.amount),0);
+    const dates=[...new Set(wkPays.map(p=>p.date))].sort();
+    const dateCell=dates.length?dates.map(fmtDay).join(', '):'<span class="muted">–</span>';
     const tot=totalPaid(s.id);const bal=exp-tot;weekSum+=thisWeek;
     const st=thisWeek>0?['paid','PAID']:['unpaid','UNPAID'];
     const act=thisWeek>0?`<button class="btn danger" onclick="deleteWeekPayment('${s.id}',${wi})">✕ Delete</button>`:`<button class="btn sm" onclick="markPaid('${s.id}',${wi})">✓ Mark Paid</button>`;
-    return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${thisWeek?money(thisWeek):'<span class="muted">–</span>'}</td><td class="num">${money0(tot)}</td><td class="num">${money0(Math.max(bal,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td>${act}</td></tr>`;
+    return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${thisWeek?money(thisWeek):'<span class="muted">–</span>'}</td><td>${dateCell}</td><td class="num">${money0(tot)}</td><td class="num">${money0(Math.max(bal,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td>${act}</td></tr>`;
   }).join('');
   document.getElementById('todayTotal').textContent=money(weekSum);
 }
@@ -505,7 +524,7 @@ async function markPaid(studentId,wi){
   const fee=+DB.settings.fee||0;
   if(!(fee>0)){toast('Set the weekly fee in Settings first');return;}
   setSync('Saving…');
-  const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:weekStartISO(wi),amount:fee,remarks:'Weekly fee'});
+  const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:payDateForWeek(wi),amount:fee,remarks:'Weekly fee'});
   if(error){toast(error.message,true);return;}
   toast('Marked paid');await loadData();
 }
@@ -518,7 +537,7 @@ async function markAllPaid(){
   if(!unpaid.length){toast('Everyone is already marked paid this week');return;}
   if(!confirm('Mark '+unpaid.length+' student(s) as PAID ('+money(fee)+' each) for Week '+(wi+1)+'?'))return;
   setSync('Saving…');
-  const rows=unpaid.map(s=>({student_id:s.id,pay_date:weekStartISO(wi),amount:fee,remarks:'Weekly fee'}));
+  const rows=unpaid.map(s=>({student_id:s.id,pay_date:payDateForWeek(wi),amount:fee,remarks:'Weekly fee'}));
   const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
   toast(unpaid.length+' marked paid');await loadData();
