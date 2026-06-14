@@ -132,15 +132,16 @@
   <section id="collect" class="tab">
     <div class="card"><h2>Record a Collection</h2>
       <div class="row">
-        <div class="field" style="flex:0;min-width:230px"><label>Week</label><select id="cWeek"></select></div>
-        <div class="field" style="flex:0;min-width:150px"><label>Day Paid</label><select id="cDay"></select></div>
-        <div class="field" style="flex:2;min-width:260px"><label>Student</label><select id="cStudent"></select></div>
-        <div class="field" style="flex:0;max-width:140px;min-width:110px"><label>Amount</label><input type="number" id="cAmount" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field" style="flex:0;min-width:185px"><label>Pay from Week</label><select id="cWeek"></select></div>
+        <div class="field" style="flex:0;min-width:185px"><label>to Week</label><select id="cWeekTo"></select></div>
+        <div class="field" style="flex:0;min-width:150px"><label>Date of Payment</label><input type="date" id="cPayDate"></div>
+        <div class="field" style="flex:2;min-width:220px"><label>Student</label><select id="cStudent"></select></div>
+        <div class="field" style="flex:0;max-width:130px;min-width:100px"><label>Amount / week</label><input type="number" id="cAmount" min="0" step="0.01" placeholder="0.00"></div>
         <div class="field"><label>Remarks (optional)</label><input type="text" id="cRemarks" placeholder="e.g. cash / partial"></div>
         <div class="field" style="justify-content:flex-end;flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addPayment()">+ Add</button></div>
       </div>
       <div class="toolbar" style="margin-top:12px"><button class="btn sec" onclick="markAllPaid()">✓ Mark ALL students Paid for this week (weekly fee)</button><button class="btn danger" style="padding:10px 16px;font-size:14px" onclick="deleteAllWeek()">✕ Delete ALL collections for this week</button></div>
-      <div class="muted" style="margin-top:8px">Tip: the amount defaults to the weekly fee. "Mark ALL Paid" records the weekly fee for every student not yet paid in the selected week. Set the fee, term start date and number of weeks in <b>Settings</b>.</div>
+      <div class="muted" style="margin-top:8px">Tip: pick one week (same "from" and "to") or a <b>range of weeks</b> to pay several at once — <b>Amount / week</b> is charged per week. <b>Date of Payment</b> is the day the money was received. "Mark ALL Paid" uses the record form's "from" week. Set fee, term start &amp; number of weeks in <b>Settings</b>.</div>
     </div>
     <div class="card"><h2>This Week's Collections <span class="muted" id="todayDateLabel"></span></h2>
       <div class="muted" style="margin-bottom:10px">Every student is listed. "This Week" shows what they paid for the selected week; "Total Paid" is their running total across all weeks.</div>
@@ -411,21 +412,29 @@ async function deleteStudent(id){
   toast('Student deleted');await loadData();
 }
 async function addPayment(){
-  const wi=parseInt(document.getElementById('cWeek').value);
+  let lo=parseInt(document.getElementById('cWeek').value);
+  let hi=parseInt(document.getElementById('cWeekTo').value);
+  if(isNaN(lo)){toast('Pick a week');return;}
+  if(isNaN(hi))hi=lo;if(hi<lo){const t=lo;lo=hi;hi=t;}
   const studentId=document.getElementById('cStudent').value;
   const amount=parseFloat(document.getElementById('cAmount').value);
-  const remarks=document.getElementById('cRemarks').value.trim();
-  if(isNaN(wi)){toast('Pick a week');return;}
+  const payDate=document.getElementById('cPayDate').value||isoToday();
+  const remark=document.getElementById('cRemarks').value.trim();
   if(!studentId){toast('Add a student first');return;}
-  if(!(amount>0)){toast('Enter a valid amount');return;}
-  const off=parseInt(document.getElementById('cDay').value)||0;
-  const date=dayDateISO(wi,off);
+  if(!(amount>0)){toast('Enter a valid amount per week');return;}
+  const rows=[];
+  for(let i=lo;i<=hi;i++){
+    const inWk=weekIndex(payDate)===i;
+    const pd=inWk?payDate:weekStartISO(i);
+    const note=inWk?remark:((remark?remark+' · ':'')+'Paid '+fmtDay(payDate));
+    rows.push({student_id:studentId,pay_date:pd,amount,remarks:note});
+  }
   setSync('Saving…');
-  const {error}=await sb.from('payments').insert({student_id:studentId,pay_date:date,amount,remarks});
+  const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
   document.getElementById('cAmount').value=DB.settings.fee||'';
   document.getElementById('cRemarks').value='';
-  toast('Collection recorded');await loadData();
+  toast(rows.length>1?('Recorded '+rows.length+' weeks ('+money(amount*rows.length)+')'):'Collection recorded');await loadData();
 }
 async function deletePayment(id){
   setSync('Saving…');
@@ -499,15 +508,13 @@ function weekStartISO(i){const d=termMonday();d.setDate(d.getDate()+i*7);return 
 function dayDateISO(wi,off){const d=new Date(weekStartISO(wi)+'T00:00:00');d.setDate(d.getDate()+(+off||0));return ymd(d);}
 function payDateForWeek(wi){const t=isoToday();return weekIndex(t)===wi?t:weekStartISO(wi);}
 function fillWeekSelect(){
-  const sel=document.getElementById('cWeek');if(!sel)return;
-  const W=+DB.settings.weeks||13;const prev=sel.value;
+  const W=+DB.settings.weeks||13;
   let opts='';for(let i=0;i<W;i++)opts+=`<option value="${i}">Week ${i+1} · ${weekRange(i)}</option>`;
-  sel.innerHTML=opts;
-  sel.value=(prev!==''&&prev!=null&&+prev<W)?prev:String(Math.min(Math.max(currentWeekIndex(),0),W-1));
-  sel.onchange=()=>{fillDaySelect();renderWeekTab();};
-  const am=document.getElementById('cAmount');if(am&&!am.value)am.value=DB.settings.fee||'';
   const cur=String(Math.min(Math.max(currentWeekIndex(),0),W-1));
-  ['weekNav','weekNavTo'].forEach(id=>{const e=document.getElementById(id);if(!e)return;const p=e.value;e.innerHTML=opts;e.value=(p!==''&&p!=null&&+p<W)?p:cur;});
+  ['cWeek','cWeekTo','weekNav','weekNavTo'].forEach(id=>{const e=document.getElementById(id);if(!e)return;const p=e.value;e.innerHTML=opts;e.value=(p!==''&&p!=null&&+p<W)?p:cur;});
+  const cw=document.getElementById('cWeek');if(cw)cw.onchange=()=>{const to=document.getElementById('cWeekTo');if(to&&+to.value<+cw.value)to.value=cw.value;};
+  const am=document.getElementById('cAmount');if(am&&!am.value)am.value=DB.settings.fee||'';
+  const pd=document.getElementById('cPayDate');if(pd&&!pd.value)pd.value=isoToday();
 }
 function fillDaySelect(){
   const sel=document.getElementById('cDay');if(!sel)return;
