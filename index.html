@@ -136,7 +136,7 @@
     </div>
     <div class="card"><h2>This Week's Collections <span class="muted" id="todayDateLabel"></span></h2>
       <div class="muted" style="margin-bottom:10px">Every student is listed. "This Week" shows what they paid for the selected week; "Total Paid" is their running total across all weeks.</div>
-      <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">This Week</th><th class="num">Total Paid</th><th class="num">Balance</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">This Week</th><th class="num">Total Paid</th><th class="num">Balance</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody></table></div>
       <div class="toolbar" style="margin-top:12px"><b>Week total collected:&nbsp;</b><span id="todayTotal"></span></div>
     </div>
   </section>
@@ -489,15 +489,25 @@ function renderWeekTab(){
   const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
   document.getElementById('todayDateLabel').textContent=wi>=0?'· Week '+(wi+1)+' ('+weekRange(wi)+')':'';
   const tb=document.querySelector('#todayTable tbody');
-  if(!DB.students.length){tb.innerHTML='<tr><td colspan="6" class="empty">No students yet. Add some in the Students tab.</td></tr>';document.getElementById('todayTotal').textContent=money(0);return;}
+  if(!DB.students.length){tb.innerHTML='<tr><td colspan="7" class="empty">No students yet. Add some in the Students tab.</td></tr>';document.getElementById('todayTotal').textContent=money(0);return;}
   const exp=expectedPerStudent();let weekSum=0;
   tb.innerHTML=DB.students.map(s=>{
     const thisWeek=DB.payments.filter(p=>p.studentId===s.id&&weekIndex(p.date)===wi).reduce((a,p)=>a+(+p.amount),0);
     const tot=totalPaid(s.id);const bal=exp-tot;weekSum+=thisWeek;
     const st=thisWeek>0?['paid','PAID']:['unpaid','UNPAID'];
-    return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${thisWeek?money(thisWeek):'<span class="muted">–</span>'}</td><td class="num">${money0(tot)}</td><td class="num">${money0(Math.max(bal,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td></tr>`;
+    const act=thisWeek>0?`<button class="btn danger" onclick="deleteWeekPayment('${s.id}',${wi})">✕ Delete</button>`:'';
+    return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${thisWeek?money(thisWeek):'<span class="muted">–</span>'}</td><td class="num">${money0(tot)}</td><td class="num">${money0(Math.max(bal,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td>${act}</td></tr>`;
   }).join('');
   document.getElementById('todayTotal').textContent=money(weekSum);
+}
+async function deleteWeekPayment(studentId,wi){
+  const ids=DB.payments.filter(p=>p.studentId===studentId&&weekIndex(p.date)===wi).map(p=>p.id);
+  if(!ids.length)return;
+  if(!confirm("Delete this week's collection for "+studentName(studentId)+"? ("+ids.length+" entr"+(ids.length>1?'ies':'y')+")"))return;
+  setSync('Saving…');
+  const {error}=await sb.from('payments').delete().in('id',ids);
+  if(error){toast(error.message,true);return;}
+  toast('Payment deleted');await loadData();
 }
 function renderWeekly(){
   const t=document.getElementById('weeklyTable');
