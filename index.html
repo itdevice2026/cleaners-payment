@@ -210,6 +210,7 @@
         <input type="text" id="logSearch" placeholder="Search name / remarks..." oninput="renderLog()" style="min-width:220px">
         <button class="btn sec sm" onclick="exportCSV()">⭳ Export CSV</button>
         <button class="btn ghost sm" onclick="window.print()">🖨 Print</button>
+        <button class="btn danger sm admin-only" onclick="deleteAllPayments()">🗑 Delete ALL log</button>
         <span class="right muted" id="logCount"></span>
       </div>
       <div class="tablewrap"><table id="logTable"><thead><tr><th>Date</th><th>Student</th><th>Section</th><th>Week</th><th class="num">Amount</th><th>Remarks</th><th></th></tr></thead><tbody></tbody></table></div></div>
@@ -616,6 +617,14 @@ async function markAllPaid(){
   const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
   toast(unpaid.length+' marked paid');await loadData();
+}
+async function deleteAllPayments(){
+  if(!DB.payments.length){toast('No payments to delete');return;}
+  if(!confirm('Delete ALL '+DB.payments.length+' payment records?\nStudents are kept. This CANNOT be undone.'))return;
+  setSync('Saving…');
+  const {error}=await sb.from('payments').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  if(error){toast(error.message,true);return;}
+  toast('All payments deleted');await loadData();
 }
 async function deleteAllWeek(){
   const sel=document.getElementById('cWeek');const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
