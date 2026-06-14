@@ -133,7 +133,7 @@
         <div class="field"><label>Remarks (optional)</label><input type="text" id="cRemarks" placeholder="e.g. cash / partial"></div>
         <div class="field" style="justify-content:flex-end;flex:0;min-width:auto"><label>&nbsp;</label><button class="btn" onclick="addPayment()">+ Add</button></div>
       </div>
-      <div class="toolbar" style="margin-top:12px"><button class="btn sec" onclick="markAllPaid()">✓ Mark ALL students Paid for this week (weekly fee)</button></div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn sec" onclick="markAllPaid()">✓ Mark ALL students Paid for this week (weekly fee)</button><button class="btn danger" style="padding:10px 16px;font-size:14px" onclick="deleteAllWeek()">✕ Delete ALL collections for this week</button></div>
       <div class="muted" style="margin-top:8px">Tip: the amount defaults to the weekly fee. "Mark ALL Paid" records the weekly fee for every student not yet paid in the selected week. Set the fee, term start date and number of weeks in <b>Settings</b>.</div>
     </div>
     <div class="card"><h2>This Week's Collections <span class="muted" id="todayDateLabel"></span></h2>
@@ -541,6 +541,16 @@ async function markAllPaid(){
   const {error}=await sb.from('payments').insert(rows);
   if(error){toast(error.message,true);return;}
   toast(unpaid.length+' marked paid');await loadData();
+}
+async function deleteAllWeek(){
+  const sel=document.getElementById('cWeek');const wi=sel&&sel.value!==''?parseInt(sel.value):currentWeekIndex();
+  const ids=DB.payments.filter(p=>weekIndex(p.date)===wi).map(p=>p.id);
+  if(!ids.length){toast('No collections to delete for this week');return;}
+  if(!confirm('Delete ALL '+ids.length+' collection(s) for Week '+(wi+1)+'? This cannot be undone.'))return;
+  setSync('Saving…');
+  const {error}=await sb.from('payments').delete().in('id',ids);
+  if(error){toast(error.message,true);return;}
+  toast(ids.length+' record(s) deleted');await loadData();
 }
 async function deleteWeekPayment(studentId,wi){
   const ids=DB.payments.filter(p=>p.studentId===studentId&&weekIndex(p.date)===wi).map(p=>p.id);
