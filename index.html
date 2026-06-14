@@ -146,7 +146,7 @@
     <div class="card"><h2>This Week's Collections <span class="muted" id="todayDateLabel"></span></h2>
       <div class="muted" style="margin-bottom:10px">Every student is listed. "This Week" shows what they paid for the selected week; "Total Paid" is their running total across all weeks.</div>
       <div class="toolbar"><label>Week:</label><select id="weekNav" onchange="renderWeekTab()" style="min-width:200px"></select><span style="font-weight:700;color:var(--muted)">to</span><label>Week:</label><select id="weekNavTo" onchange="renderWeekTab()" style="min-width:200px"></select><input type="text" id="weekSearch" placeholder="🔍 Search student name..." oninput="renderWeekTab()" style="min-width:210px"></div>
-      <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">Paid (Selected)</th><th>Date Paid</th><th class="num">Total Paid</th><th class="num">Balance</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody></table></div>
+      <div class="tablewrap"><table id="todayTable"><thead><tr><th>Student</th><th>Section</th><th class="num">Paid (Selected)</th><th>Date Paid</th><th>Weeks Paid</th><th class="num">Total Paid</th><th class="num">Balance</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody></table></div>
       <div class="toolbar" style="margin-top:12px"><b>Week total collected:&nbsp;</b><span id="todayTotal"></span></div>
     </div>
   </section>
@@ -480,6 +480,7 @@ function termMonday(){const d=new Date(DB.settings.start+'T00:00:00');d.setDate(
 function weekIndex(dateStr){const a=termMonday();const d=new Date(dateStr+'T00:00:00');return Math.floor(Math.round((d-a)/(864e5))/7);}
 function weekRange(i){const mon=termMonday();mon.setDate(mon.getDate()+i*7);const fri=new Date(mon);fri.setDate(fri.getDate()+4);const f=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});return f(mon)+' – '+f(fri);}
 function payWeek(p){return (p&&p.wk!=null)?p.wk:weekIndex(p.date);}
+function compressWeeks(arr){arr=[...new Set(arr)].filter(n=>n>=0).sort((a,b)=>a-b);if(!arr.length)return '';const parts=[];let s=arr[0],pv=arr[0];for(let i=1;i<=arr.length;i++){if(arr[i]===pv+1){pv=arr[i];continue;}parts.push(s===pv?String(s+1):(s+1)+'–'+(pv+1));s=arr[i];pv=arr[i];}return parts.join(', ');}
 function totalPaid(studentId){return DB.payments.filter(p=>p.studentId===studentId).reduce((a,p)=>a+(+p.amount),0);}
 function expectedPerStudent(){return (+DB.settings.fee||0)*(+DB.settings.weeks||0);}
 
@@ -553,7 +554,7 @@ function renderWeekTab(){
   const label=lo===hi?('Week '+(lo+1)+' · '+weekRange(lo)):('Weeks '+(lo+1)+'–'+(hi+1)+' · '+weekRange(lo).split(' – ')[0]+' – '+weekRange(hi).split(' – ')[1]);
   document.getElementById('todayDateLabel').textContent='· '+label;
   const tb=document.querySelector('#todayTable tbody');
-  if(!DB.students.length){tb.innerHTML='<tr><td colspan="8" class="empty">No students yet. Add some in the Students tab.</td></tr>';document.getElementById('todayTotal').textContent=money(0);return;}
+  if(!DB.students.length){tb.innerHTML='<tr><td colspan="9" class="empty">No students yet. Add some in the Students tab.</td></tr>';document.getElementById('todayTotal').textContent=money(0);return;}
   const fee=+DB.settings.fee||0,exp=expectedPerStudent(),dueR=fee*(hi-lo+1);
   const inRange=p=>{const wi=payWeek(p);return wi>=lo&&wi<=hi;};
   const weekSum=DB.payments.filter(inRange).reduce((a,p)=>a+(+p.amount),0);
@@ -565,10 +566,12 @@ function renderWeekTab(){
     const dates=[...new Set(rp.map(p=>p.date))].sort();
     const dateCell=dates.length?dates.map(fmtDay).join(', '):'<span class="muted">–</span>';
     const tot=totalPaid(s.id);const bal=exp-tot;
+    const covered=compressWeeks(DB.payments.filter(p=>p.studentId===s.id).map(payWeek));
+    const coveredCell=covered?('Wk '+covered):'<span class="muted">–</span>';
     const st=fee>0&&paidR>=dueR?['paid','PAID']:paidR>0?['partial','PARTIAL']:['unpaid','UNPAID'];
     const act=paidR>0?`<button class="btn danger" onclick="deleteRange('${s.id}',${lo},${hi})">✕ Delete</button>`:`<button class="btn sm" onclick="markPaid('${s.id}',${lo})">✓ Mark Paid</button>`;
-    return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${paidR?money(paidR):'<span class="muted">–</span>'}</td><td>${dateCell}</td><td class="num">${money0(tot)}</td><td class="num">${money0(Math.max(bal,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td>${act}</td></tr>`;
-  }).join('')||'<tr><td colspan="8" class="empty">No students match your search.</td></tr>';
+    return `<tr><td>${esc(s.name)}</td><td>${esc(s.section)}</td><td class="num">${paidR?money(paidR):'<span class="muted">–</span>'}</td><td>${dateCell}</td><td>${coveredCell}</td><td class="num">${money0(tot)}</td><td class="num">${money0(Math.max(bal,0))}</td><td><span class="pill ${st[0]}">${st[1]}</span></td><td>${act}</td></tr>`;
+  }).join('')||'<tr><td colspan="9" class="empty">No students match your search.</td></tr>';
   document.getElementById('todayTotal').textContent=money(weekSum);
 }
 async function deleteRange(studentId,lo,hi){
